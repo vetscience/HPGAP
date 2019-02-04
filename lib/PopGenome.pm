@@ -1,0 +1,1763 @@
+package PopGenome;
+use File::Basename;
+use File::Path qw(make_path);
+use strict;
+use warnings;
+use FindBin '$Bin';
+use lib "$Bin/lib";
+use lib '/root/miniconda3/lib/site_perl/5.26.2';
+use YAML::Tiny;
+use Bio::SeqIO;
+
+#-------------------------------------- Prepare reference index --------------------------------------
+
+############################
+#			   #
+#    Step 0 Indexing       #
+#			   #
+############################
+sub INDEXING{
+
+	#######
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	
+	my $outpath = "$cfg{args}{outdir}/00.INDEXING/"; 
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";} 
+	my $shpath = "$cfg{args}{outdir}/NewShell/00.INDEXING";
+	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
+	
+	open SH, ">$shpath/index.sh";
+	foreach my $temp_ref(keys %{$cfg{ref}{db}}){
+		my $reference = $cfg{ref}{db}{$temp_ref}{path};
+		my $genome=LOADREF($reference);
+
+		my $ref_base=basename($reference);
+		my $ref_dir=dirname($reference);
+		my $ref_name=$ref_base;
+		$ref_name =~ s/\.fasta$//;
+		$ref_name =~ s/\.fa$//;
+
+		if (! -e "$outpath/$ref_base.bwt"){
+			if ( !-d "$outpath" ) { make_path $shpath or die "Failed to create path: $outpath";}
+			print SH "#!/bin/sh\ncd $outpath\n";
+			#if ( -e $mtgenome){
+			#	`ln -s $mtgenome $outpath/`;
+			#	print ID "cat $reference $mtgenome >$ref_base\n";
+			#	print ID "bwa index $ref_base $ref_name \n";
+			#	print ID "picard CreateSequenceDictionary R=$ref_base O=$ref_name.dict \n";
+			#	print ID "samtools faidx $ref_base \n";
+			#}else{
+			`cp -f $reference $outpath/` if ( !-e "$outpath/$ref_base" );
+			print SH "bwa index $ref_base $ref_name \n";
+			print SH "picard CreateSequenceDictionary R=$ref_base O=$ref_name.dict \n";
+			print SH "samtools faidx $ref_base \n";
+		#}
+		}
+		
+		$cfg{ref}{db}{$temp_ref}{path} = "$outpath/$ref_base";
+	}
+	close SH;
+	`sh $shpath/index.sh` unless ($skipsh ==1);
+
+	# create this yaml object
+	$yaml = YAML::Tiny->new( \%cfg );
+	# Save both documents to a file
+	$yaml->write( $yml_file );
+}
+#-------------------------------------- Analysis -----------------------------------------------
+
+############################
+#			   #
+#   Step 1a Data filtering #
+#			   #
+############################
+sub DATA_FILTERING{
+
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	
+	my $outpath = "$cfg{args}{outdir}/01.QualityControl/read_filtering/"; 
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";} 
+	my $shpath = "$cfg{args}{outdir}/NewShell/01.QualityControl/read_filtering/";
+	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
+
+	my %samplelist = %{$cfg{fqdata}};
+
+	open CL, ">$shpath/cmd_step1a.list";
+	foreach my $sample (keys %samplelist){
+		my $sample_outpath="$outpath/$sample"; if ( !-d $sample_outpath ) {make_path $sample_outpath or die "Failed to create path: $sample_outpath";}
+		open SH, ">$shpath/$sample.step1a.sh";
+		print SH "#!/bin/sh\ncd $sample_outpath\n";
+		foreach my $lib (keys %{$samplelist{$sample}{rawdata}}){
+			my $read;
+			if ($samplelist{$sample}{rawdata}{$lib}{fq1} =~ /gz$/){
+				$read = `gunzip -c $samplelist{$sample}{rawdata}{$lib}{fq1}|head -n 2|tail -n 1`;
+			}else{
+				$read = `cat $samplelist{$sample}{rawdata}{$lib}{fq1}|head -n 2|tail -n 1`;
+			}
+			$samplelist{$sample}{rawdata}{$lib}{Length} = split //, $read;
+			$samplelist{$sample}{rawdata}{$lib}{Length}=int($samplelist{$sample}{rawdata}{$lib}{Length}*0.7);
+			if($samplelist{$sample}{rawdata}{$lib}{Flag} eq "PE"){
+				print SH "reformat.sh overwrite=true in1=$samplelist{$sample}{rawdata}{$lib}{fq1} in2=$samplelist{$sample}{rawdata}{$lib}{fq2} bhist=$lib\_bhist.txt qhist=$lib\_qhist.txt aqhist=$lib\_aqhist.txt lhist=$lib\_lhist.txt  gchist=$lib\_gchist.txt && \\\n";
+				print SH "trimmomatic PE -threads 10 -phred$samplelist{$sample}{rawdata}{$lib}{Phred} $samplelist{$sample}{rawdata}{$lib}{fq1} $samplelist{$sample}{rawdata}{$lib}{fq2} $lib\_1.filt.fq.gz $lib\_1.filt.unpaired.fq.gz $lib\_2.filt.fq.gz $lib\_2.filt.unpaired.fq.gz LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:$samplelist{$sample}{rawdata}{$lib}{Length} && \\\n";
+				print SH "reformat.sh overwrite=true in1=$lib\_1.filt.fq.gz in2=$lib\_2.filt.fq.gz bhist=$lib\_bhist.filt.txt qhist=$lib\_qhist.filt.txt aqhist=$lib\_aqhist.filt.txt lhist=$lib\_lhist.filt.txt gchist=$lib\_gchist.filt.txt \n";
+			}if($samplelist{$sample}{rawdata}{$lib}{Flag} eq "SE"){
+				print SH "reformat.sh overwrite=true in1=$samplelist{$sample}{rawdata}{$lib}{fq1} bhist=$lib\_bhist.txt qhist=$lib\_qhist.txt aqhist=$lib\_aqhist.txt lhist=$lib\_lhist.txt  gchist=$lib\_gchist.txt && \\\n";
+				print SH "trimmomatic SE -threads 10 -phred$samplelist{$sample}{rawdata}{$lib}{Phred} $samplelist{$sample}{rawdata}{$lib}{fq1} $lib\_1.filt.fq.gz LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:$samplelist{$sample}{rawdata}{$lib}{Length} && \\\n";
+				print SH "reformat.sh overwrite=true in1=$lib\_1.filt.fq.gz bhist=$lib\_bhist.filt.txt qhist=$lib\_qhist.filt.txt aqhist=$lib\_aqhist.filt.txt lhist=$lib\_lhist.filt.txt gchist=$lib\_gchist.filt.txt \n";			
+			}
+		}
+		close SH;
+		print CL "sh $shpath/$sample.step1a.sh 1>$shpath/$sample.step1a.sh.o 2>$shpath/$sample.step1a.sh.e\n";
+	}
+	close CL;
+	`parallel -j 40 < $shpath/cmd_step1a.list` unless ($skipsh ==1);
+}
+
+############################
+#			   #
+#    Step 1b Mapping       #
+#			   #
+############################
+sub MAPPING{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	my %samplelist = %{$cfg{fqdata}};
+
+	foreach my $temp_ref(keys %{$cfg{ref}{db}}){
+		my $outpath = "$cfg{args}{outdir}/01.QualityControl/read_mapping.$temp_ref"; 
+		if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";} 
+		my $shpath = "$cfg{args}{outdir}/NewShell/01.QualityControl/read_mapping.$temp_ref";
+		if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
+
+		my $reference = $cfg{ref}{db}{$temp_ref}{path};	
+		open CL, ">$shpath/cmd_step1b.list";
+		foreach my $sample (keys %samplelist){
+			my $sample_outpath="$outpath/$sample"; if ( !-d $sample_outpath ) {make_path $sample_outpath or die "Failed to create path: $sample_outpath";}
+
+			open SH, ">$shpath/$sample.step1b.sh";		
+			print SH "#!/bin/sh\ncd $sample_outpath\n";
+			foreach my $lib (keys %{$samplelist{$sample}{rawdata}}){
+				print SH "bwa mem $reference ../../read_filtering/$sample/$lib\_1.filt.fq.gz ../../read_filtering/$sample/$lib\_2.filt.fq.gz -t 10 -R \"\@RG\\tID:$lib\\tSM:$sample\\tLB:$lib\\tPL:$samplelist{$sample}{rawdata}{$lib}{PL}\"\| samtools view -bS -@ 10 -F 4 - -o $lib\_filt.bam && \\\n" if($samplelist{$sample}{rawdata}{$lib}{Flag} eq "PE");
+				print SH "bwa mem $reference ../../read_filtering/$sample/$lib\_1.filt.fq.gz -t 10 -R \"\@RG\\tID:$lib\\tSM:$sample\\tLB:$lib\\tPL:$samplelist{$sample}{rawdata}{$lib}{PL}\"\| samtools view -bS -@ 10 -F 4 - -o $lib\_filt.bam && \\\n" if($samplelist{$sample}{rawdata}{$lib}{Flag} eq "SE");
+				print SH "samtools sort -@ 10 $lib\_filt.bam -o $lib\_filt.sort.bam --output-fmt BAM && \\\n";
+				print SH "rm -f $lib\_filt.bam\n";
+			}
+
+			if (keys %{$samplelist{$sample}{rawdata}} == 1){
+				foreach my $lib (keys %{$samplelist{$sample}{rawdata}}){print SH "mv $lib\_filt.sort.bam $sample.sorted.bam\n";}
+				print SH "samtools stats -@ 10 $sample.sorted.bam 1>bam.stats.txt 2>bam.stats.txt.e && echo \"** bam.stats.txt done **\"\n";
+			}
+
+			if (keys %{$samplelist{$sample}{rawdata}} > 1){
+				print SH "samtools merge -nr -@ 10 $sample.bam *_filt.sort.bam && echo \"** $sample.sort.bam done **\" && rm -f *_filt.sort.bam\n";
+				print SH "samtools sort -@ 10 $sample.bam -o $sample.sorted.bam --output-fmt BAM && echo \"** $sample.sorted.bam done **\" && rm -f $sample.bam\n";
+				print SH "samtools stats -@ 10 $sample.sorted.bam 1>bam.stats.txt 2>bam.stats.txt.e && echo \"** bam.stats.txt done **\"\n";
+			}
+			close SH;
+			print CL "sh $shpath/$sample.step1b.sh 1>$shpath/$sample.step1b.sh.o 2>$shpath/$sample.step1b.sh.e \n";
+		}
+		close CL;
+		`parallel -j 40 < $shpath/cmd_step1b.list` unless ($skipsh ==1);
+	}
+
+	# create this yaml object
+	$yaml = YAML::Tiny->new( \%cfg );
+	# Save both documents to a file
+	$yaml->write( $yml_file );
+}
+#################################
+#			   #
+#    Step 1c Report summary	    #
+#			   #
+#################################
+sub READ_REPORT{
+	my ($samplelist,$reference, $genome, $outpath,$shpath,$main,$mountpath,$image)=@_;
+	my %samplelist = %{$samplelist};
+	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
+	if ( !-d $outpath ) { make_path $outpath or die "Failed to create path: $outpath";}
+	open SH, ">$shpath/Read_report.sh";
+	open CL, ">$shpath/cmd_step1c.list";
+	foreach my $sample (keys %samplelist){
+		my $sample_outpath="$outpath/$sample"; if ( !-d $sample_outpath ) {make_path $sample_outpath or die "Failed to create path: $sample_outpath";}
+		open IN, ">$shpath/$sample.step1c.Rmd";
+		print IN '---',"\n";
+		print IN 'title: "Read quality report"',"\n";
+		print IN 'output:',"\n";
+		print IN '  html_document: default',"\n";
+		print IN '  word_document: default',"\n";
+		print IN '  pdf_document: default',"\n";
+		print IN '---',"\n";
+		print IN '',"\n";
+		print IN '```{bash,echo = FALSE, message = FALSE, warning = FALSE}',"\n";
+		print IN "sample=\"$sample\"","\n";
+		print IN "dir=\"$sample_outpath\"","\n";
+		print IN 'less $dir/bam.stats.txt |grep ^SN | cut -f 2- |perl -ne \'s/ //g;print;\' >$dir/SN.stat.txt',"\n";
+		print IN 'less $dir/bam.stats.txt |grep ^COV | cut -f 2- >$dir/COV.stat.txt',"\n";
+		print IN 'less $dir/bam.stats.txt |grep ^IS | cut -f 2- >$dir/IS.stat.txt',"\n";
+		print IN '```',"\n";
+		print IN '',"\n";
+		print IN '```{r setup, include=FALSE}',"\n";
+		print IN 'knitr::opts_chunk$set(echo = TRUE)',"\n";
+		print IN 'library(ggplot2)',"\n";
+		print IN 'library(gridExtra)',"\n";
+		print IN "sample <- \"$sample\"","\n";
+		print IN "dir <- \"$outpath\"","\n";
+		print IN '',"\n";
+		print IN 'raw.path<-paste(dir, sample, "/*lhist.txt", sep="")',"\n";
+		print IN 'raw.lengthList <- lapply(Sys.glob(raw.path), read.table)',"\n";
+		print IN 'raw.x_num<-sapply(1:length(raw.lengthList[]),function(x) sum(raw.lengthList[[x]]$V2))',"\n";
+		print IN 'raw.xbase_num<-sapply(1:length(raw.lengthList[]),function(x) sum(as.numeric(raw.lengthList[[x]]$V2)*as.numeric(raw.lengthList[[x]]$V1)))',"\n";
+		print IN 'raw.No.reads <- prettyNum(sum(raw.x_num),big.mark = ",")',"\n";
+		print IN 'raw.No.bases <- prettyNum(sum(raw.xbase_num),big.mark = ",")',"\n";
+		print IN '',"\n";
+		print IN 'path<-paste(dir, sample, "/*lhist.filt.txt", sep="")',"\n";
+		print IN 'lengthList <- lapply(Sys.glob(path), read.table)',"\n";
+		print IN 'x_num<-sapply(1:length(lengthList[]),function(x) sum(lengthList[[x]]$V2))',"\n";
+		print IN 'xbase_num<-sapply(1:length(lengthList[]),function(x) sum(as.numeric(lengthList[[x]]$V2)*as.numeric(lengthList[[x]]$V1)))',"\n";
+		print IN 'x<-x_num/(sum(x_num))',"\n";
+		print IN 'No.reads <- prettyNum(sum(x_num),big.mark = ",")',"\n";
+		print IN 'No.bases <- prettyNum(sum(xbase_num),big.mark = ",")',"\n";
+		print IN '',"\n";
+		print IN '                                                                                        ',"\n";
+		print IN '##########Phred Quality###############',"\n";
+		print IN 'path<-paste(dir, sample, "/*_qhist.filt.txt", sep="")',"\n";
+		print IN 'qhistList <- lapply(Sys.glob(path), read.table)',"\n";
+		print IN 'q<-lapply(1:length(lengthList[]),FUN = function(y) x[y]*qhistList[[y]])',"\n";
+		print IN 'qhist<-Reduce("+", q)',"\n";
+		print IN 'if(ncol(qhist)==5){colnames(qhist)[1:ncol(qhist)]=c("Pos","Read1","V3","Read2","V4")}',"\n";
+		print IN 'if(ncol(qhist)==3){colnames(qhist)[1:ncol(qhist)]=c("Pos","Read1","V3")}',"\n";
+		print IN '',"\n";
+		print IN 'PhredqR1<-ggplot(data=qhist) + ',"\n";
+		print IN '  geom_line(aes(x=Pos, y=Read1),show.legend=F)+ ',"\n";
+		print IN '  xlab("Position in read1(bp)") + ylab("Phred value") +',"\n";
+		print IN '  scale_y_continuous(limits = c(20, 40))',"\n";
+		print IN '',"\n";
+		print IN 'if(ncol(qhist)==5){PhredqR2<-ggplot(data=qhist) + ',"\n";
+		print IN '  geom_line(aes(x=Pos, y=Read2),show.legend=F)+ ',"\n";
+		print IN '  xlab("Position in read2(bp)") + ylab("Phred value") +',"\n";
+		print IN '  scale_y_continuous(limits = c(20, 40))}',"\n";
+		print IN '',"\n";
+		print IN '############Base distribution################',"\n";
+		print IN 'path<-paste(dir, sample, "/*bhist.filt.txt", sep="")',"\n";
+		print IN 'bhistList <- lapply(Sys.glob(path), read.table)',"\n";
+		print IN 'a<-lapply(1:length(lengthList[]),FUN = function(y) x[y]*bhistList[[y]])',"\n";
+		print IN 'bhist<-Reduce("+", a)',"\n";
+		print IN '',"\n";
+		print IN '#rename colnames, #Pos    A[V2]       C[V3]       G[V4]       T[V5]       N[V6]',"\n";
+		print IN 'colnames(bhist)[1:6]=c("Pos","A","C","G","T","N")',"\n";
+		print IN 'bhist$Pos = bhist$Pos +1',"\n";
+		print IN 'read1<-bhist[bhist$Pos<101,]',"\n";
+		print IN 'read2<-bhist[bhist$Pos>100,]',"\n";
+		print IN 'read2$Pos=read2$Pos - 100',"\n";
+		print IN 'baseread1<-ggplot(data=read1) + ',"\n";
+		print IN '  geom_line(aes(x=Pos, y=A, color="A"),show.legend=F)+ ',"\n";
+		print IN '  geom_line(aes(x=Pos, y=G,color="G"),show.legend=F) + ',"\n";
+		print IN '  geom_line(aes(x=Pos, y=T, color="T"),show.legend=F) + ',"\n";
+		print IN '  geom_line(aes(x=Pos, y=C, color="C"),show.legend=F) +  ',"\n";
+		print IN '  scale_colour_manual("", breaks=c("A","G","C","T"),values = c("blue", "red", "yellow","green")) + ',"\n";
+		print IN '  xlab("Position in read1(bp)") + ylab("Percentage") +',"\n";
+		print IN '  scale_y_continuous(limits = c(0, 0.4))',"\n";
+		print IN '',"\n";
+		print IN 'if(ncol(qhist)==5){baseread2<-ggplot(data=read2) + ',"\n";
+		print IN '  geom_line(aes(x=Pos, y=A, color="A"))+ ',"\n";
+		print IN '  geom_line(aes(x=Pos, y=G,color="G")) + ',"\n";
+		print IN '  geom_line(aes(x=Pos, y=T, color="T")) + ',"\n";
+		print IN '  geom_line(aes(x=Pos, y=C, color="C")) +  ',"\n";
+		print IN '  scale_colour_manual("", breaks=c("A","G","C","T"),values = c("blue", "red", "yellow","green")) + ',"\n";
+		print IN '  xlab("Position in read2(bp)") + ylab("Percentage") +',"\n";
+		print IN '  scale_y_continuous(limits = c(0, 0.4))}',"\n";
+		print IN '',"\n";
+		print IN '############Distribution of Phred Quality#########',"\n";
+		print IN 'raw.path<-paste(dir, sample, "/*_aqhist.txt", sep="")',"\n";
+		print IN 'raw.aqhistList <- lapply(Sys.glob(raw.path), read.table)',"\n";
+		print IN 'raw.aq.count.sum.r1<-sapply(1:length(raw.aqhistList[]),FUN = function(x) sum(as.numeric(raw.aqhistList[[x]]$V2)))',"\n";
+		print IN 'raw.aq.count.sum.r2<-sapply(1:length(raw.aqhistList[]),FUN = function(x) sum(as.numeric(raw.aqhistList[[x]]$V4)))',"\n";
+		print IN 'raw.aq.sum.r1<-sapply(1:length(raw.aqhistList[]),FUN = function(x) sum(as.numeric(raw.aqhistList[[x]]$V2)*as.numeric(raw.aqhistList[[x]]$V1)))',"\n";
+		print IN 'raw.aq.sum.r2<-sapply(1:length(raw.aqhistList[]),FUN = function(x) sum(as.numeric(raw.aqhistList[[x]]$V4)*as.numeric(raw.aqhistList[[x]]$V1)))',"\n";
+		print IN 'raw.aq.avg.r1<-sum(raw.aq.sum.r1/sum(raw.aq.count.sum.r1))',"\n";
+		print IN 'raw.aq.avg.r2<-sum(raw.aq.sum.r2/sum(raw.aq.count.sum.r2))',"\n";
+		print IN 'raw.aq.avg <- paste(as.character(round(raw.aq.avg.r1,2)),as.character(round(raw.aq.avg.r2,2)),sep = "/")',"\n";
+		print IN '',"\n";
+		print IN 'path<-paste(dir, sample, "/*_aqhist.filt.txt", sep="")',"\n";
+		print IN 'aqhistList <- lapply(Sys.glob(path), read.table)',"\n";
+		print IN 'aq.count.sum.r1<-sapply(1:length(aqhistList[]),FUN = function(x) sum(as.numeric(aqhistList[[x]]$V2)))',"\n";
+		print IN 'aq.count.sum.r2<-sapply(1:length(aqhistList[]),FUN = function(x) sum(as.numeric(aqhistList[[x]]$V4)))',"\n";
+		print IN 'aq.sum.r1<-sapply(1:length(aqhistList[]),FUN = function(x) sum(as.numeric(aqhistList[[x]]$V2)*as.numeric(aqhistList[[x]]$V1)))',"\n";
+		print IN 'aq.sum.r2<-sapply(1:length(aqhistList[]),FUN = function(x) sum(as.numeric(aqhistList[[x]]$V4)*as.numeric(aqhistList[[x]]$V1)))',"\n";
+		print IN 'aq.avg.r1<-sum(aq.sum.r1/sum(aq.count.sum.r1))',"\n";
+		print IN 'aq.avg.r2<-sum(aq.sum.r2/sum(aq.count.sum.r2))',"\n";
+		print IN 'aq.avg <- paste(as.character(round(aq.avg.r1,2)),as.character(round(aq.avg.r2,2)),sep = "/")',"\n";
+		print IN '',"\n";
+		print IN '#gc<-lapply(1:length(lengthList[]),FUN = function(y) x[y]*gchistList[[y]])',"\n";
+		print IN 'aqhistList<-lapply(1:length(aqhistList[]),FUN = function(x) aqhistList[[x]][-39,])',"\n";
+		print IN 'aqhist<-Reduce("+", aqhistList)',"\n";
+		print IN 'aqhist$V1<-aqhist$V1/length(aqhistList[])',"\n";
+		print IN 'aqhist$V3<-aqhist$V3/length(aqhistList[])*100',"\n";
+		print IN 'if(ncol(aqhist)==5){aqhist$V5<-aqhist$V5/length(aqhistList[])*100}',"\n";
+		print IN 'qread1<-ggplot(data=aqhist,aes(x=V1,y=V3)) +  geom_bar(stat="identity", width=0.9) +',"\n";
+		print IN '  xlab("Phred Quality") + ylab("Frequency in read1 (%)") +',"\n";
+		print IN '  scale_y_continuous(limits = c(0, 30))',"\n";
+		print IN 'if(ncol(aqhist)==5){qread2<-ggplot(data=aqhist,aes(x=V1,y=V5)) +  geom_bar(stat="identity", width=0.9) +',"\n";
+		print IN '  xlab("Phred Quality") + ylab("Frequency in read2 (%)") +',"\n";
+		print IN '  scale_y_continuous(limits = c(0, 30))}',"\n";
+		print IN '',"\n";
+		print IN '############Distribution of GC content#########',"\n";
+		print IN 'raw.path<-paste(dir, sample, "/*_gchist.txt", sep="")',"\n";
+		print IN 'raw.gchistList <- lapply(Sys.glob(raw.path), read.table)',"\n";
+		print IN 'raw.gc.sum<-sapply(1:length(raw.gchistList[]),FUN = function(x) sum(as.numeric(raw.gchistList[[x]]$V2)*as.numeric(raw.gchistList[[x]]$V1)))',"\n";
+		print IN 'raw.gc.count.sum<-sapply(1:length(raw.gchistList[]),FUN = function(x) sum(as.numeric(raw.gchistList[[x]]$V2)))',"\n";
+		print IN 'raw.gc.avg<-sum(raw.gc.sum/sum(raw.gc.count.sum))',"\n";
+		print IN '',"\n";
+		print IN 'path<-paste(dir, sample, "/*_gchist.filt.txt", sep="")',"\n";
+		print IN 'gchistList <- lapply(Sys.glob(path), read.table)',"\n";
+		print IN 'gc.sum<-sapply(1:length(gchistList[]),FUN = function(x) sum(as.numeric(gchistList[[x]]$V2)*as.numeric(gchistList[[x]]$V1)))',"\n";
+		print IN 'gc.count.sum<-sapply(1:length(gchistList[]),FUN = function(x) sum(as.numeric(gchistList[[x]]$V2)))',"\n";
+		print IN 'gc.avg<-sum(gc.sum/sum(gc.count.sum))',"\n";
+		print IN '',"\n";
+		print IN 'gchist<-Reduce("+", gchistList)',"\n";
+		print IN 'gchist$V1<-gchist$V1/length(gchistList[])',"\n";
+		print IN 'gc.plot<-ggplot(data=gchist,aes(x=V1,y=V2)) +  geom_bar(stat="identity", width=0.9) +',"\n";
+		print IN '  xlab("GC content") + ylab("Frequency")',"\n";
+		print IN '```',"\n";
+		print IN '',"\n";
+		print IN '## `r sample`',"\n";
+		print IN '### Basic statistics',"\n";
+		print IN '',"\n";
+		print IN '```{r echo = FALSE, results=\'asis\'}',"\n";
+		print IN 'library(knitr)',"\n";
+		print IN 'basics<-data.frame( "Category" = c("Raw reads","Filtered reads"), ',"\n";
+		print IN '                    "Number of reads" = c(raw.No.reads,No.reads), ',"\n";
+		print IN '                    "Number of bases" = c(raw.No.bases,No.bases), ',"\n";
+		print IN '                    "GC content" = c(paste(as.character(round(raw.gc.avg,2)), "%", sep = ""), paste(as.character(round(gc.avg,2)), "%", sep = "")),',"\n";
+		print IN '                    "Average phred quality" = c(raw.aq.avg,aq.avg), check.names=FALSE)',"\n";
+		print IN 'kable(basics,caption="Table 1. Basic summary of read data.",align=rep(\'l\', 5))',"\n";
+		print IN '```',"\n";
+		print IN '',"\n";
+		print IN '### Phred quality',"\n";
+		print IN '```{r fig.cap= "Figure 1. The average phred quality for each site of read sequence", echo = FALSE, message = FALSE, warning = FALSE}',"\n";
+		print IN 'if(ncol(qhist)==3){grid.arrange(PhredqR1, nrow = 1,widths = c(1,1))}',"\n";
+		print IN 'if(ncol(qhist)==5){grid.arrange(PhredqR1, PhredqR2, nrow = 1,widths = c(1,1))}',"\n";
+		print IN '```',"\n";
+		print IN '',"\n";
+		print IN '### Sequence composition',"\n";
+		print IN '```{r fig.cap= "Figure 2. Sequence composition for each site of read sequence", echo = FALSE, message = FALSE, warning = FALSE}',"\n";
+		print IN 'if(ncol(qhist)==3){grid.arrange(baseread1, nrow = 1,widths = c(1,1.2))}',"\n";
+		print IN 'if(ncol(qhist)==5){grid.arrange(baseread1, baseread2, nrow = 1,widths = c(1,1.2))}',"\n";
+		print IN '```',"\n";
+		print IN '',"\n";
+		print IN '### Distribution of GC content',"\n";
+		print IN '```{r fig.cap= "Figure 3. Distribution of GC content", echo = FALSE, message = FALSE, warning = FALSE}',"\n";
+		print IN 'gc.plot',"\n";
+		print IN '```',"\n";
+		print IN '',"\n";
+		print IN '### Distribution of Phred Quality',"\n";
+		print IN '```{r fig.cap= "Figure 4. Distribution of Phred Quality", echo = FALSE, message = FALSE, warning = FALSE}',"\n";
+		print IN 'if(ncol(qhist)==3){grid.arrange(qread1, nrow = 1,widths = c(1,1))}',"\n";
+		print IN 'if(ncol(qhist)==5){grid.arrange(qread1, qread2, nrow = 1,widths = c(1,1))}',"\n";
+		print IN '```',"\n";
+		print IN '',"\n";
+		print IN '### Statistics of alignment',"\n";
+		print IN '```{r,echo = FALSE, message = FALSE, warning = FALSE}',"\n";
+		print IN 'file <- paste(dir, sample, "/IS.stat.txt", sep="")',"\n";
+		print IN 'IS<-read.table(file)',"\n";
+		print IN 'IS$V2<-IS$V2/sum(IS$V2)*100',"\n";
+		print IN 'is.plot<-ggplot(data=IS,aes(x=V1,y=V2)) +  geom_bar(stat="identity", width=0.5) +',"\n";
+		print IN '  xlab("Insert Size") + ylab("Frequency(%)")',"\n";
+		print IN '',"\n";
+		print IN 'file <- paste(dir, sample, "/COV.stat.txt", sep="")',"\n";
+		print IN 'COV<-read.table(file)',"\n";
+		print IN 'Avg.cov<-round(sum(as.numeric(COV$V3)*COV$V2)/sum(as.numeric(COV$V3)))',"\n";
+		print IN "Reference.length<-$genome->{sumlen}","\n";
+		print IN 'Coverage<-round(sum(as.numeric(COV$V3))/Reference.length*100,2)',"\n";
+		print IN 'Coverage10<-round(sum(as.numeric(COV$V3[10:length(COV$V3)]))/Reference.length*100,2)',"\n";
+		print IN 'COV$V3<-COV$V3/sum(as.numeric(COV$V3))*100',"\n";
+		print IN '',"\n";
+		print IN '',"\n";
+		print IN 'cov.plot<-ggplot(data=COV,aes(x=V2,y=V3)) +  geom_bar(stat="identity", width=0.8) +',"\n";
+		print IN '  xlab("Coverage") + ylab("Frequency(%)") + scale_x_continuous(limits = c(0, 400))',"\n";
+		print IN '',"\n";
+		print IN 'file <- paste(dir, sample, "/SN.stat.txt", sep="")',"\n";
+		print IN 'SN<-read.table(file)',"\n";
+		print IN 'IS.avg<-SN$V2[26]',"\n";
+		print IN 'IS.sd<-SN$V2[27]',"\n";
+		print IN '',"\n";
+		print IN 'No.reads<-SN$V2[3]',"\n";
+		print IN 'No.mapped.reads<-SN$V2[7]',"\n";
+		print IN 'No.MQ0<-SN$V2[13]',"\n";
+		print IN 'Percentage.mapped<-round(as.numeric((No.mapped.reads-No.MQ0)/No.reads*100),2)',"\n";
+		print IN 'Mismatch.rate<-round(SN$V2[22]*100,2)',"\n";
+		print IN 'basics<-data.frame("Insert size" = paste(IS.avg,"(",IS.sd,")",sep=""),',"\n";
+		print IN '	"Mapping rate (%)" = Percentage.mapped,',"\n";
+		print IN '	"Average depth" = Avg.cov,',"\n";
+		print IN '	"Percent of the genome covered (%)" = Coverage,',"\n";
+		print IN '	"Percent of the genome covered by at least 10 reads (%)" = Coverage10,',"\n";
+		print IN '	"Mismatch rate (%)" = Mismatch.rate,',"\n";
+		print IN '	check.names=FALSE)',"\n";
+		print IN '',"\n";
+		print IN 'kable(basics,caption="Table 2. Statistics of read alignment.",align=rep(\'l\', 5))',"\n";
+		print IN '```',"\n";
+		print IN '',"\n";
+		print IN '### Insert size',"\n";
+		print IN 'For the sample `r sample`, predicted mean (standard deviation) of insert size is `r IS.avg`(`r IS.sd`) with a normal distribution of read insert sizes.',"\n";
+		print IN '```{r fig.cap= "Figre 5. Distribution of insert size", echo = FALSE, message = FALSE, warning = FALSE}',"\n";
+		print IN 'is.plot',"\n";
+		print IN '```',"\n";
+		print IN '',"\n";
+		print IN '### Coverage',"\n";
+		print IN 'We mapped the filtered reads to the reference genome. For sample `r sample`, `r Percentage.mapped`% of the filtered reads were uniquely mapped to the reference.',"\n";
+		print IN '```{r fig.cap= "Figure 6. Distribution of genome coverage", echo = FALSE, message = FALSE, warning = FALSE}',"\n";
+		print IN 'cov.plot',"\n";
+		print IN '```',"\n";
+		close IN;
+		
+		open RSH, ">$shpath/$sample.step1c.R";
+		print RSH "setwd(\"$shpath\")\n";
+		print RSH "library(\"rmarkdown\")\n";
+		print RSH "rmarkdown::render(\"$sample.step1c.Rmd\")\n";
+		close RSH;
+
+		print CL "Rscript $shpath/$sample.step1c.R 1>$shpath/$sample.step1c.R.o 2>$shpath/$sample.step1c.R.e\n";
+	}
+	close CL;
+	print SH "sh -c 'parallel -j 40 < $shpath/cmd_step1c.list'\n";
+	close SH;
+	open MH, ">>$main"; print MH "docker run -ti  -v $mountpath --rm $image sh -c 'sh $shpath/Read_report.sh 1>$shpath/Read_report.sh.o 2>$shpath/Read_report.sh.e'\n";close MH;
+}
+
+#################################
+#			   #
+#    Step 1d Variant calling    #
+#			   #
+#################################
+sub CALIBRATION{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+
+	my $ploidy = $cfg{args}{ploidy};
+
+	my %samplelist = %{$cfg{fqdata}};
+
+	my $reference = $cfg{ref}{db}{$cfg{ref}{choose}}{path};
+	my $outpath = "$cfg{args}{outdir}/01.QualityControl/read_mapping.$cfg{ref}{choose}"; 
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";} 
+	my $shpath = "$cfg{args}{outdir}/NewShell/01.QualityControl/read_mapping.$cfg{ref}{choose}";
+	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
+
+	open CL, ">$shpath/cmd_step1d.list";
+
+	foreach my $sample (keys %samplelist){
+		my $sample_outpath="$outpath/$sample"; if ( !-d $sample_outpath ) {make_path $sample_outpath or die "Failed to create path: $sample_outpath";}
+		open SH, ">$shpath/$sample.step1d.sh";
+
+		print SH "#!/bin/sh\ncd $sample_outpath\n";		
+		# MarkDuplicates
+		print SH "gatk MarkDuplicates \\\n";
+	  	print SH "	--INPUT $sample.sorted.bam \\\n";
+	  	print SH "	--OUTPUT $sample.sorted.markdup.bam \\\n";
+	  	print SH "	--METRICS_FILE $sample.sorted.markdup_metrics.txt && \\\n";
+	  	print SH "rm -f $sample.sorted.bam && \\\n";
+	  	print SH "echo \"** $sample.sorted.markdup.bam done **\" && \\\n";
+	  	print SH "samtools index $sample.sorted.markdup.bam && echo \"** $sample.sorted.markdup.bam index done **\" \n";
+	  		# HaplotypeCaller
+	  	print SH "gatk HaplotypeCaller \\\n";
+	  	print SH "	-R $reference \\\n";
+	  	print SH "	-ploidy $ploidy \\\n";
+	 	print SH "	-I $sample.sorted.markdup.bam \\\n";
+	  	print SH "	-O $sample.HC.g1st.vcf.gz && echo \"** GVCF $sample.HC.g.vcf.gz done\" \n";
+	  	
+	  	###########SNP extraction and filtering#######
+	  	# SelectVariants
+	  	print SH "gatk SelectVariants \\\n";
+	  	print SH "	-R $reference \\\n";
+	  	print SH "	-V $sample.HC.g1st.vcf.gz \\\n";
+	  	print SH "	--select-type-to-include SNP \\\n";
+		print SH "	-O $sample\_raw_snps1st.vcf && echo \"** GVCF $sample.HC.g.vcf.gz done\" \n";
+		# VariantFiltration
+		print SH "gatk VariantFiltration \\\n";
+	  	print SH "	-R $reference \\\n";
+	  	print SH "	-V $sample\_raw_snps1st.vcf \\\n";
+	  	print SH "	--filter-expression \"QD < 2.0 || FS > 60.0 || MQ < 40.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0\" \\\n";
+		print SH "	--filter-name \"my_snp_filter\" \\\n";
+		print SH "	-O $sample\_filtered_snps1st.vcf && echo \"** GVCF $sample.HC.g.vcf.gz done\" \n";
+
+		###########INDEL extraction and filtering#######
+		print SH "gatk SelectVariants \\\n";
+	  	print SH "	-R $reference \\\n";
+	  	print SH "	-V $sample.HC.g1st.vcf.gz \\\n";
+	  	print SH "	--select-type-to-include INDEL \\\n";
+		print SH "	-O $sample\_raw_indels1st.vcf && echo \"** GVCF $sample.HC.g.vcf.gz done\" \n";
+
+		print SH "gatk VariantFiltration \\\n";
+	  	print SH "	-R $reference \\\n";
+	  	print SH "	-V $sample\_raw_indels1st.vcf \\\n";
+	  	print SH "	--filter-expression \"QD < 2.0 || FS > 200.0 || ReadPosRankSum < -20.0\" \\\n";
+		print SH "	--filter-name \"my_indel_filter\" \\\n";
+		print SH "	-O $sample\_filtered_indels1st.vcf && echo \"** GVCF $sample.HC.g.vcf.gz done\" \n";
+
+		print SH "bgzip -f $sample\_filtered_snps1st.vcf\n";
+		print SH "tabix -f $sample\_filtered_snps1st.vcf.gz \n";
+		print SH "bgzip -f $sample\_filtered_indels1st.vcf\n";
+		print SH "tabix -f $sample\_filtered_indels1st.vcf.gz \n";
+
+		print SH "gatk BaseRecalibrator \\\n";
+		print SH "	-R $reference \\\n";
+		print SH "	-I $sample.sorted.markdup.bam \\\n";
+	  	print SH "	-O $sample.sorted.markdup.recal_data.table \\\n";
+		print SH "	--known-sites $sample\_filtered_snps1st.vcf.gz \\\n";
+		print SH "	--known-sites $sample\_filtered_indels1st.vcf.gz && echo \"** $sample.sorted.markdup.recal_data.table done **\" \n";
+
+		print SH "gatk ApplyBQSR \\\n";
+		print SH "	-R $reference \\\n";
+		print SH "	-I $sample.sorted.markdup.bam \\\n";
+		print SH "	-O $sample.sorted.markdup.BQSR.bam \\\n";
+		print SH "	--bqsr-recal-file $sample.sorted.markdup.recal_data.table && \\\n";
+		print SH "samtools index $sample.sorted.markdup.BQSR.bam && echo \"** $sample.sorted.markdup.BQSR.bam index done **\" \n";
+
+		print SH "gatk BaseRecalibrator \\\n";
+		print SH "	-R $reference \\\n";
+		print SH "	-I $sample.sorted.markdup.BQSR.bam  \\\n";
+	  	print SH "	-O $sample.sorted.markdup.recal_data1st_after.table \\\n";
+		print SH "	--known-sites $sample\_filtered_snps1st.vcf.gz \\\n";
+		print SH "	--known-sites $sample\_filtered_indels1st.vcf.gz && echo \"** $sample.sorted.markdup.recal_data.table done **\" \n";
+
+		close SH;
+		print CL "sh $shpath/$sample.step1d.sh 1>$shpath/$sample.step1d.sh.o 2>$shpath/$sample.step1d.sh.e\n";
+	}
+	close CL;
+
+	`parallel -j 40 < $shpath/cmd_step1d.list`;
+}
+#################################
+#			   #
+#    Step 1e Variant calling    #
+#			   #
+#################################
+sub VARIANT_CALLING{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+
+	my $ploidy = $cfg{args}{ploidy};
+
+	my %samplelist = %{$cfg{fqdata}};
+
+	my $reference = $cfg{ref}{db}{$cfg{ref}{choose}}{path};
+	my $outpath = "$cfg{args}{outdir}/01.QualityControl/read_mapping.$cfg{ref}{choose}"; 
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";} 
+	my $shpath = "$cfg{args}{outdir}/NewShell/01.QualityControl/read_mapping.$cfg{ref}{choose}";
+	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
+
+	open CL, ">$shpath/cmd_step1e.list";
+
+	foreach my $sample (keys %samplelist){
+		my $sample_outpath="$outpath/$sample"; if ( !-d $sample_outpath ) {make_path $sample_outpath or die "Failed to create path: $sample_outpath";}
+		open SH, ">$shpath/$sample.step1e.sh";
+
+		print SH "#!/bin/sh\ncd $sample_outpath\n";
+
+	  	# HaplotypeCaller
+	  	print SH "gatk HaplotypeCaller \\\n";
+	  	print SH "	-R $reference \\\n";
+	  	print SH "	-ploidy $ploidy \\\n";
+	  	print SH "	-I $sample.sorted.markdup.BQSR.bam \\\n";
+	  	print SH "	-O $sample.HC.g2nd.vcf.gz && echo \"** GVCF $sample.HC.g.vcf.gz done\" && \\\n";
+	  	print SH "rm -f $sample.sorted.markdup.BQSR.bam\n";
+	  	
+	  	###########SNP extraction and filtering#######
+	  	# SelectVariants
+	  	print SH "gatk SelectVariants \\\n";
+	  	print SH "	-R $reference \\\n";
+	  	print SH "	-V $sample.HC.g2nd.vcf.gz \\\n";
+	  	print SH "	--select-type-to-include SNP \\\n";
+		print SH "	-O $sample\_raw_snps2nd.vcf && echo \"** GVCF $sample.HC.g.vcf.gz done\" \n";
+		# VariantFiltration
+		print SH "gatk VariantFiltration \\\n";
+	  	print SH "	-R $reference \\\n";
+	  	print SH "	-V $sample\_raw_snps2nd.vcf \\\n";
+	  	print SH "	--filter-expression \"QD < 2.0 || FS > 60.0 || MQ < 40.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0\" \\\n";
+		print SH "	--filter-name \"my_snp_filter\" \\\n";
+		print SH "	-O $sample\_filtered_snps2nd.vcf && echo \"** GVCF $sample.HC.g.vcf.gz done\" \n";
+
+		###########INDEL extraction and filtering#######
+		print SH "gatk SelectVariants \\\n";
+	  	print SH "	-R $reference \\\n";
+	  	print SH "	-V $sample.HC.g2nd.vcf.gz \\\n";
+	  	print SH "	--select-type-to-include INDEL \\\n";
+		print SH "	-O $sample\_raw_indels2nd.vcf && echo \"** GVCF $sample.HC.g.vcf.gz done\" \n";
+
+		print SH "gatk VariantFiltration \\\n";
+	  	print SH "	-R $reference \\\n";
+	  	print SH "	-V $sample\_raw_indels2nd.vcf \\\n";
+	  	print SH "	--filter-expression \"QD < 2.0 || FS > 200.0 || ReadPosRankSum < -20.0\" \\\n";
+		print SH "	--filter-name \"my_indel_filter\" \\\n";
+		print SH "	-O $sample\_filtered_indels2nd.vcf && echo \"** GVCF $sample.HC.g.vcf.gz done\" \n";
+
+		print SH "bgzip -f $sample\_filtered_snps2nd.vcf\n";
+		print SH "tabix -f $sample\_filtered_snps2nd.vcf.gz \n";
+		print SH "bgzip -f $sample\_filtered_indels2nd.vcf\n";
+		print SH "tabix -f $sample\_filtered_indels2nd.vcf.gz \n";
+
+		print SH "gatk BaseRecalibrator \\\n";
+		print SH "	-R $reference \\\n";
+		print SH "	-I $sample.sorted.markdup.bam \\\n";
+	  	print SH "	-O $sample.sorted.markdup.recal_data2nd.table \\\n";
+		print SH "	--known-sites $sample\_filtered_snps2nd.vcf.gz \\\n";
+		print SH "	--known-sites $sample\_filtered_indels2nd.vcf.gz && echo \"** $sample.sorted.markdup.recal_data.table done **\" \n";
+
+		print SH "gatk ApplyBQSR \\\n";
+		print SH "	-R $reference \\\n";
+		print SH "	-I $sample.sorted.markdup.bam \\\n";
+		print SH "	-O $sample.sorted.markdup.BQSR2nd.bam \\\n";
+		print SH "	--bqsr-recal-file $sample.sorted.markdup.recal_data2nd.table && \\\n";
+		print SH "samtools index $sample.sorted.markdup.BQSR2nd.bam && echo \"** $sample.sorted.markdup.BQSR2nd.bam index done **\" \n";
+
+		print SH "gatk BaseRecalibrator \\\n";
+		print SH "	-R $reference \\\n";
+		print SH "	-I $sample.sorted.markdup.BQSR2nd.bam \\\n";
+	  	print SH "	-O $sample.sorted.markdup.recal_data2nd_after.table \\\n";
+		print SH "	--known-sites $sample\_filtered_snps2nd.vcf.gz \\\n";
+		print SH "	--known-sites $sample\_filtered_indels2nd.vcf.gz && echo \"** $sample.sorted.markdup.recal_data.table done **\" \n";
+
+		print SH "gatk HaplotypeCaller \\\n";
+		print SH "	--emit-ref-confidence GVCF \\\n";
+		print SH "	-R $reference \\\n";
+		print SH "	-ploidy $ploidy \\\n";
+		print SH "	-I $sample.sorted.markdup.BQSR2nd.bam \\\n";
+		print SH "	-O $sample.HC.gvcf.gz && echo \"** GVCF ${sample}.HC.g.vcf.gz done\" && \\\n";
+	  	print SH "rm -f $sample.sorted.markdup.BQSR2nd.bam\n";
+
+	  	print SH "gatk AnalyzeCovariates \\\n";
+	  	print SH "	--before-report-file $sample.sorted.markdup.recal_data.table \\\n";
+	  	print SH "	--after-report-file $sample.sorted.markdup.recal_data1st_after.table \\\n";
+	  	print SH "	--plots-report-file $sample.recalQC.1st.pdf\n";
+
+	  	print SH "gatk AnalyzeCovariates \\\n";
+	  	print SH "	--before-report-file $sample.sorted.markdup.recal_data2nd.table \\\n";
+	  	print SH "	--after-report-file $sample.sorted.markdup.recal_data2nd_after.table \\\n";
+	  	print SH "	--plots-report-file $sample.recalQC.2nd.pdf\n";
+
+		close SH;
+		print CL "sh $shpath/$sample.step1e.sh 1>$shpath/$sample.step1e.sh.o 2>$shpath/$sample.step1e.sh.e\n";
+	}
+	close CL;
+	`parallel -j 40 < $shpath/cmd_step1e.list` unless ($skipsh ==1);
+}
+#################################
+#			   #
+#    Step 1f Variant calling    #
+#			   #
+#################################
+sub COMBINE_CALLING{
+
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+
+	my $ploidy = $cfg{args}{ploidy};
+
+	my %samplelist = %{$cfg{fqdata}};
+
+	my $reference = $cfg{ref}{db}{$cfg{ref}{choose}}{path};
+	my $outpath = "$cfg{args}{outdir}/01.QualityControl/"; 
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";} 
+	my $shpath = "$cfg{args}{outdir}/NewShell/01.QualityControl/Combined";
+	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
+
+	open SH, ">$shpath/final.calling.sh";
+	## Joint genotyping
+	## First, merge all the gvcf results, then perform GenotypeGVCFs
+	my $sample_gvcfs = "";
+	foreach my $sample (keys %samplelist){
+		$sample_gvcfs .= "	-V $outpath/read_mapping.$cfg{ref}{choose}/$sample/$sample.HC.gvcf.gz\\\n";
+	}
+	print SH "#!/bin/sh\ncd $outpath\n";
+	# Consider replace CombineGCVFs with GenomicsDBimport
+	# Through CombineGVCFs or GenomicsDBimport, we gather all the per-sample GVCFs and pass them to GenotypeGVCFs, which produces a set of joint-called SNP and indel calls ready for fitlering.
+
+	print SH "gatk CombineGVCFs \\\n";
+	print SH "	-R $reference \\\n";
+	print SH "$sample_gvcfs";
+	print SH "	-O $outpath/Combined/Combined.HC.g.vcf.gz && echo \"** Combined.HC.g.vcf.gz done ** \"\n";
+
+	print SH "gatk GenotypeGVCFs \\\n";
+	print SH "	-R $reference \\\n";
+	print SH "	-ploidy $ploidy \\\n";
+	print SH "	-V $outpath/Combined/Combined.HC.g.vcf.gz \\\n";
+	print SH "	-O $outpath/Combined/Combined.HC.vcf.gz && echo \"** Combined.HC.vcf.gz done ** \"\n";
+
+	# The established way to filter the raw variant callset is to use variant quality score recalibration (VQSR), which uses machine learning to identify annotation profiles of variants that are likely to be real, and assigns a VQSLOD score to each variant that is much more reliable than the QUAL score calculated by the caller. In the first step of this two-step process, the program builds a model based on training variants, then applies that model to the data to assign a well-calibrated probability to each variant call.
+	# We can then use this variant quality score in the second step to filter the raw call set, thus producing a subset of calls with our desired level of quality, fine-tuned to balance specificity and sensitivity.
+	## SNP mode
+	close SH;
+	`sh $shpath/final.calling.sh 1>$shpath/final.calling.sh.o 2>$shpath/final.calling.sh.e` unless ($skipsh ==1);
+}
+#################################
+#			   #
+#    Step 1g Variant filtering  #
+#			   #
+#################################
+sub VARIANT_FILTERING{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	
+	my $outpath = "$cfg{args}{outdir}/01.QualityControl/Combined";
+	my $shpath = "$cfg{args}{outdir}/NewShell/01.QualityControl/step1_variant_filtering";
+	my $reference = $cfg{ref}{db}{$cfg{ref}{choose}}{path};
+	my $genome=LOADREF($reference);
+
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
+	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
+
+	open SH, ">$shpath/variant.filtering.s1.sh";
+	print SH "gatk SelectVariants \\\n";
+	print SH "	-R $reference \\\n";
+	print SH "	-V $outpath/Combined.HC.vcf.gz \\\n";
+	print SH "	--select-type-to-include SNP \\\n";
+	print SH "	-O $outpath/Combined_raw_snps1st.vcf && echo \"** GVCF Combined_raw_snps1st done\" && \\\n";
+	print SH "gatk VariantFiltration \\\n";
+	print SH "	-R $reference \\\n";
+	print SH "	-V $outpath/Combined_raw_snps1st.vcf \\\n";
+	print SH "	--filter-expression \"$cfg{step1}{variant_filtering}{snp}\" \\\n";
+	print SH "	--filter-name \"my_snp_filter\" \\\n";
+	print SH "	-O $outpath/Combined_filtered_snps1st.vcf && echo \"** GVCF Combined_raw_snps1st done\" \n";
+
+	print SH "gatk SelectVariants \\\n";
+	print SH "	-R $reference \\\n";
+	print SH "	-V $outpath/Combined.HC.vcf.gz \\\n";
+	print SH "	--select-type-to-include INDEL \\\n";
+	print SH "	--maxIndelSize 60 \\\n";
+	print SH "	-O $outpath/Combined_raw_indels1st.vcf && echo \"** GVCF Combined_raw_snps1st done\" && \\\n";
+	print SH "gatk VariantFiltration \\\n";
+	print SH "	-R $reference \\\n";
+	print SH "	-V $outpath/Combined_raw_indels1st.vcf \\\n";
+	print SH "	--filter-expression \"$cfg{step1}{variant_filtering}{indel}\" \\\n";
+	print SH "	--filter-name \"my_indel_filter\" \\\n";
+	print SH "	-O $outpath/Combined_filtered_indels1st.vcf && echo \"** Combined_raw_snps1st done\" \n";
+	print SH "vcftools --vcf $outpath/Combined_filtered_snps1st.vcf --remove-filtered-all --recode --recode-INFO-all --stdout \| bgzip -c > $outpath/PASS.SNP.vcf.gz\n";
+
+	close SH;
+
+	#switch on the bash running
+	`sh $shpath/variant.filtering.s1.sh 1>$shpath/variant.filtering.s1.sh.o 2>$shpath/variant.filtering.s1.sh.e` unless ($skipsh ==1);
+	
+	###filter SNP by depth if needed
+	my $sample_size = keys %{$cfg{fqdata}};
+	open (IN, "zcat $outpath/PASS.SNP.vcf.gz|") or die $!;
+	my @dp;
+	while (<IN>){
+    	next if (/#/);
+    	if (/DP=([\d\.]+)/){push @dp, $1;}
+	}
+	my $p50 = int(@dp * .5);
+	my $avgdp50 = 3*$dp[$p50]/$sample_size;
+	close IN; 
+	
+	my $chrcmd="";
+	###filter by chromosomes if needed
+	if (defined $cfg{step1}{variant_filtering}{chr}){
+		my @a = split /,/, $cfg{step1}{variant_filtering}{chr};
+		foreach (@a){
+			$chrcmd .= " --chr $_";
+		}
+	}
+
+	#default SNV sites 1: PASS + max-meanDP: 3*$avgdp50 + max-missing: 0.8 + biallelic + selected chr (optional)
+	open SH, ">$shpath/variant.filtering.s2.sh";
+	print SH "vcftools --gzvcf $outpath/PASS.SNP.vcf.gz $chrcmd --min-meanDP 1 --max-meanDP $avgdp50 --max-missing 0.8 --max-alleles 2 --remove-filtered-all --recode --recode-INFO-all --stdout \| bgzip -c > $outpath/PASS.SNP.DP.vcf.gz\n";
+	close SH;
+	`sh $shpath/variant.filtering.s2.sh 1>$shpath/variant.filtering.s2.sh.o 2>$shpath/variant.filtering.s2.sh.e` unless ($skipsh ==1);
+	$cfg{step1}{variant_filtering}{vcf}="$outpath/PASS.SNP.DP.vcf.gz";
+
+	### prepare the setting for low LD prunning
+	$cfg{step1}{variant_filtering}{scaffold_number_limit} = 95 unless (defined $cfg{step1}{variant_filtering}{scaffold_number_limit});
+	$cfg{step1}{variant_filtering}{scaffold_length_cutoff} = 0 unless (defined $cfg{step1}{variant_filtering}{scaffold_length_cutoff});
+	#set ld prunning cut off
+	$cfg{step1}{variant_filtering}{ldwindowsize} = 50 unless (defined $cfg{step1}{variant_filtering}{ldwindowsize});
+	$cfg{step1}{variant_filtering}{ldwindowstep} = 10 unless (defined $cfg{step1}{variant_filtering}{ldwindowstep});
+	$cfg{step1}{variant_filtering}{ldcutoff} = 0.3 unless (defined $cfg{step1}{variant_filtering}{ldcutoff});
+
+	### load reference and map scaffold to number list 
+	my $i=1;my $j=0;
+	open OT, ">$outpath/chr_map.list";
+	foreach my $id(sort { $genome->{len}{$b} <=> $genome->{len}{$a} } keys %{$genome->{len}}){
+		print OT "$id\t$i\n";
+		$i++;
+		if (($genome->{len}{$id} >= $cfg{step1}{variant_filtering}{scaffold_length_cutoff})&&($j < $cfg{step1}{variant_filtering}{scaffold_number_limit})){
+			$j++;
+		}
+	}
+	close OT;
+	$cfg{step1}{variant_filtering}{scaffold_number_limit} = $j;
+	my $scaffold_number_limit = $cfg{step1}{variant_filtering}{scaffold_number_limit};
+
+	#Based on default SNV sites + no singletons + no missing data + minDP 2 + minQ 30  (high quality SNPs)
+	open SH, ">$shpath/variant.filtering.s3.sh";
+	print SH "cd $outpath\n";
+	print SH "vcftools --gzvcf $cfg{step1}{variant_filtering}{vcf} --singletons --stdout >$outpath/singletons.list\n";
+	print SH "vcftools --gzvcf $cfg{step1}{variant_filtering}{vcf} --exclude-positions $outpath/singletons.list --max-missing 1 --max-alleles 2 --minDP 2 --minQ 30 --recode --recode-INFO-all --stdout |bgzip -c >$outpath/high_confidence.vcf.gz\n";
+
+	#Based on high quality SNV sites + low LD
+	print SH 'bcftools annotate --threads 10 --rename-chrs', " $outpath/chr_map.list" ," $outpath/high_confidence.vcf.gz", '|perl -ne \'if (/#\S+ID=(\d+)/){if($1<=',"$scaffold_number_limit",'){print;}}elsif(/^#/){print;}elsif(/^(\d+)\s+/){if($1<= ',"$scaffold_number_limit",'){print;}}\'|vcftools --vcf - --plink',"\n";
+	
+	print SH <<EOF;
+plink --file out --make-bed --chr-set $scaffold_number_limit no-xy no-mt no-y
+plink --bfile plink --indep-pairwise $cfg{step1}{variant_filtering}{ldwindowsize} $cfg{step1}{variant_filtering}{ldwindowstep} $cfg{step1}{variant_filtering}{ldcutoff} --chr-set $scaffold_number_limit no-xy no-mt no-y
+plink --bfile plink --extract plink.prune.in --make-bed --out high_confidence_prunned --chr-set $scaffold_number_limit no-xy no-mt no-y
+plink --bfile high_confidence_prunned --chr-set $scaffold_number_limit no-xy no-mt no-y --recode vcf --out high_confidence_pre
+cat high_confidence_pre.vcf|perl -ne 'print unless (/CHROM/);if(/CHROM/){s/_\\S+//g;print;}' | bgzip -c >$outpath/high_confidence_prunned.vcf.gz
+EOF
+	close SH;
+
+	#switch on the bash running
+	`sh $shpath/variant.filtering.s3.sh 1>$shpath/variant.filtering.s3.sh.o 2>$shpath/variant.filtering.s3.sh.e` unless ($skipsh ==1);
+	
+	$cfg{step1}{variant_filtering}{plink_data}="$outpath/high_confidence_prunned";
+	$cfg{step1}{variant_filtering}{high_confidence_vcf}="$outpath/high_confidence.vcf.gz";
+	$cfg{step1}{variant_filtering}{lowld_high_confidence_vcf}="$outpath/high_confidence_prunned.vcf.gz";
+	
+	# create this yaml object
+	$yaml = YAML::Tiny->new( \%cfg );
+	# Save both documents to a file
+	$yaml->write( "$cfg{args}{outdir}/allcfg.yml" );
+}
+#################################
+#			   #
+#    Step 1g VARIANT_COMPARISON #
+#			   #
+#################################
+sub VARIANT_COMPARISON{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+
+	my $outpath = "$cfg{args}{outdir}/01.QualityControl/Comparison";
+	my $shpath = "$cfg{args}{outdir}/NewShell/01.QualityControl/Comparison";
+	my $reference = $cfg{ref}{db}{$cfg{ref}{choose}}{path};
+	my $gzvcf1 = $cfg{step1}{variant_filtering}{vcf};
+	my $gzvcf2 = "$cfg{args}{outdir}/Input/c.briggsae_snps.vcf.gz";
+	my $dustbed = "/home/darcy/PopGen_WorkFlow/Cb_Validation/Input/dust.bed";
+	my $cdsbed = "/home/darcy/PopGen_WorkFlow/Cb_Validation/Input/cds.bed";
+
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
+	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
+
+	my $vcf1_base = basename($gzvcf1); $vcf1_base =~ s/.vcf.gz//g;
+	my $vcf2_base = basename($gzvcf2); $vcf2_base =~ s/.vcf.gz//g;
+
+	open SH, ">$shpath/comparison.sh";
+	print SH "cd $outpath\n";
+	print SH "#zcat $gzvcf1  | awk '\$1 ~ /^#/ {print \$0;next} {print \$0 | \"LC_ALL=C sort -k1,1 -k2,2n\"}'  |bgzip -c >$outpath/$vcf1_base.sorted.vcf.gz\n";
+	print SH "#zcat $gzvcf2  | awk '\$1 ~ /^#/ {print \$0;next} {print \$0 | \"LC_ALL=C sort -k1,1 -k2,2n\"}'  |bgzip -c >$outpath/$vcf2_base.sorted.vcf.gz\n";
+
+	print SH "#vcftools --gzvcf $outpath/$vcf1_base.sorted.vcf.gz --gzdiff $outpath/$vcf2_base.sorted.vcf.gz --diff-site --stdout >$outpath/compare.diff.sites_in_files\n";
+
+	print SH "#cat $outpath/compare.diff.sites_in_files|grep -v CHROM|awk '{if(\$4 == 1){print;}}' |cut -f 1,2 >$outpath/unique.$vcf1_base.position.list\n";
+	print SH "#cat $outpath/compare.diff.sites_in_files|grep -v CHROM|awk '{if(\$4 == 2){print;}}' |cut -f 1,3 >$outpath/unique.$vcf2_base.position.list\n";
+	print SH "cat $outpath/compare.diff.sites_in_files|awk '{if(\$4 == \"B\"){print;}}'|grep -v CHROM|cut -f 1,3 >$outpath/common.position.list\n";
+
+	open CL, ">$shpath/cmd1.list";
+	print CL "vcftools --gzvcf $outpath/$vcf1_base.sorted.vcf.gz --positions $outpath/common.position.list --recode --recode-INFO-all --stdout \| bgzip -c >$outpath/$vcf1_base.sorted.common.vcf.gz\n";
+	print CL "vcftools --gzvcf $outpath/$vcf2_base.sorted.vcf.gz --positions $outpath/common.position.list --recode --recode-INFO-all --stdout \| bgzip -c >$outpath/$vcf2_base.sorted.common.vcf.gz\n";
+	print CL "vcftools --gzvcf $outpath/$vcf1_base.sorted.vcf.gz --positions $outpath/unique.$vcf1_base.position.list --recode --recode-INFO-all --stdout \| bgzip -c >$outpath/$vcf1_base.sorted.unique.vcf.gz\n";
+	print CL "vcftools --gzvcf $outpath/$vcf2_base.sorted.vcf.gz --positions $outpath/unique.$vcf2_base.position.list --recode --recode-INFO-all --stdout \| bgzip -c >$outpath/$vcf2_base.sorted.unique.vcf.gz\n";
+	close CL;
+	print SH "parallel -j 20 < $shpath/cmd1.list\n";
+
+	print SH "StatVCF.pl $outpath/$vcf1_base.sorted.common.vcf.gz >$outpath/$vcf1_base.common.stat\n";
+	print SH "StatVCF.pl $outpath/$vcf1_base.sorted.unique.vcf.gz >$outpath/$vcf1_base.unique.stat\n";
+
+	open CL, ">$shpath/cmd2.list";
+	my @pre = ("$vcf1_base.sorted.common", "$vcf1_base.sorted.unique","$vcf2_base.sorted.common","$vcf2_base.sorted.unique");
+	foreach my $pre (@pre){
+		print CL "vcftools --gzvcf $outpath/$pre.vcf.gz --TsTv-summary --stdout >$outpath/$pre.tstv.summary\n";
+		print CL "vcftools --gzvcf $outpath/$pre.vcf.gz --bed $dustbed --recode --recode-INFO-all --stdout |bgzip -c >$outpath/$pre.dust.vcf.gz\n";
+		print CL "vcftools --gzvcf $outpath/$pre.vcf.gz --bed $cdsbed --recode --recode-INFO-all --stdout |bgzip -c >$outpath/$pre.cds.vcf.gz\n";
+	}
+	close CL;
+	print SH "parallel -j 20 < $shpath/cmd2.list\n";
+	close SH;
+
+	`sh $shpath/comparison.sh 1>$shpath/comparison.sh.o 2>$shpath/comparison.sh.e` unless ($skipsh ==1);
+
+	my %comp;
+	foreach my $pre (@pre){
+		open IN, "$outpath/$pre.tstv.summary";
+		while (<IN>){
+			if (/Ts\s+(\d+)/){$comp{$pre}{Ts}=$1;}
+			if (/Tv\s+(\d+)/){$comp{$pre}{Tv}=$1;}
+		}
+		$comp{$pre}{TsTv}=$comp{$pre}{Ts}/$comp{$pre}{Tv};
+		close IN;
+
+		open (IN, "zcat $outpath/$pre.dust.vcf.gz|") or die $!;
+		my $i=0;
+		while (<IN>){
+			next if (/#/);
+			$i++;
+		}
+		$comp{$pre}{dust}=$i;
+		close IN;
+
+		open (IN, "zcat $outpath/$pre.cds.vcf.gz|") or die $!;
+		$i=0;
+		while (<IN>){
+			next if (/#/);
+			$i++;
+		}
+		$comp{$pre}{cds}=$i;
+		close IN;
+	}
+
+	open STAT, ">$outpath/stat.txt";
+	print STAT "Name\tTs/Tv\tDust\tCDS\n";
+	foreach my $pre (keys %comp){
+		print STAT "$pre\t$comp{$pre}{TsTv}\t$comp{$pre}{dust}\t$comp{$pre}{cds}\n";
+	}
+	close STAT;
+	#To be done
+}
+#---------------------------------------------------------------------------------------------------
+
+
+#--------------------------------------Step02.SampleFiltering--------------------------------------
+sub RELATEDNESS{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	my $outpath = "$cfg{args}{outdir}/02.SampleFiltering/Relatedness";
+	my $shpath = "$cfg{args}{outdir}/NewShell/02.SampleFiltering/Relatedness";
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
+	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
+	
+	open SH, ">$shpath/Relatedness.sh";
+	print SH "cd $outpath;vcftools --gzvcf $cfg{step1}{variant_filtering}{vcf} --relatedness2 --out $outpath/RD\n";
+	close SH;
+
+	#switch on the bash running
+	`sh $shpath/Relatedness.sh 1>$shpath/Relatedness.sh.o 2>$shpath/Relatedness.sh.e` unless ($skipsh ==1);
+
+	#INDV1	INDV2	N_AaAa	N_AAaa	N1_Aa	N2_Aa	RELATEDNESS_PHI
+	#1-1	1-1	3.52698e+06	0	3.52698e+06	3.52698e+06	0.5
+	#1-1	1-2	1.55085e+06	156628	3.52698e+06	3.4146e+06	0.178286
+	
+	open IN, "$outpath/RD.relatedness2";
+	open OT, ">$outpath/RD.relatedness2.filtered.txt";
+	while (<IN>){
+		my @a = split /\t/;
+		if($a[6] =~ /RELATEDNESS_PHI/){print OT $_;next;}
+		if($a[0] eq $a[1]){next;}
+		if($a[6] >= 0.25){print OT $_;} 
+	}
+	close IN;
+	close OT;
+}
+#--------------------------------------03.GeneticRelationships--------------------------------------
+
+#################################
+#			   #
+#   	Step3_phylogeny    		#
+#			   #
+#################################
+sub PHYLOGENY{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	my $outpath = "$cfg{args}{outdir}/03.GeneticRelationships/Phylogeny/";
+	my $shpath = "$cfg{args}{outdir}/NewShell/03.GeneticRelationships/Phylogeny/";
+	my $gzvcf = $cfg{step1}{variant_filtering}{lowld_high_confidence_vcf};
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
+	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
+
+	open SH, ">$shpath/phylogeny.sh\n";
+	print SH "cd $outpath\n";
+	print SH "rm -rf $outpath/RAxML_*\n";
+	print SH "zcat $gzvcf|vcf-to-tab >$outpath/plink_data.tab\n";
+	print SH "vcf_tab_to_fasta_alignment.pl -i $outpath/plink_data.tab > $outpath/plink_data.fasta\n";
+	print SH "seqmagick convert $outpath/plink_data.fasta $outpath/plink_data.phy\n";
+	print SH "raxmlHPC-PTHREADS -m GTRGAMMA -s $outpath/plink_data.phy -n trees -T 24 -# 20 -p 12345\n";
+	print SH "raxmlHPC-PTHREADS -m GTRGAMMA -s $outpath/plink_data.phy -n boots -T 24 -# 100 -p 23456 -b 23456\n";
+	print SH "raxmlHPC-PTHREADS -m GTRGAMMA -p 12345 -f b -t RAxML_bestTree.trees -T 2 -z RAxML_bootstrap.boots -n consensus\n";
+	print SH "sumtrees.py --percentages --min-clade-freq=0.50 --target=RAxML_bestTree.trees --output=result2.tre RAxML_bootstrap.boots";
+	close SH;
+
+	`sh $shpath/phylogeny.sh 1>$shpath/phylogeny.sh.o 2>$shpath/phylogeny.sh.e` unless ($skipsh ==1);
+}
+#################################
+#			   #
+#   	Step3_admixture    		#
+#			   #
+#################################
+sub ADMIXTURE{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	my $outpath = "$cfg{args}{outdir}/03.GeneticRelationships/Admixture/";
+	my $shpath = "$cfg{args}{outdir}/NewShell/03.GeneticRelationships/Admixture/";
+	my $plink_data = $cfg{step1}{variant_filtering}{plink_data};
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
+	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
+
+	open SH, ">$shpath/step3_admixture.sh";
+	
+	print SH "cd $outpath\n";
+	print SH "cp -fr $plink_data* ./\n";
+	open CL, ">$shpath/step3_admixture.cmd.list";
+	for (my $k=0; $k<9;$k++){
+		print CL "admixture --cv $plink_data.bed $k 1>$shpath/$k.admixture.o 2>$shpath/$k.admixture.e\n";
+	}
+	close CL;
+
+	# generate the sample list file (for the sample order in the graph)
+	`cp -f $Bin/lib/admixture.R $shpath/admixture.R`;
+	if ((defined $cfg{step3}{admixture}{samplelist})&&(-e $cfg{step3}{admixture}{samplelist})){
+		`cp -f $cfg{step3}{admixture}{samplelist} $outpath/sample.list`;
+	}else{
+		my @a = keys %{$cfg{population}};
+		open SL, ">$outpath/sample.list";
+		foreach (@a){
+			print SL "$_\n";
+		}
+		close SL;
+	}
+
+	# generate the arguments for Rscript
+	my @p;
+	push @p, $outpath; 
+	push @p, "$outpath/sample.list";
+	push @p, "K";
+	my $p = join (' ',@p);
+
+	print SH "parallel -j 20 < $shpath/step3_admixture.cmd.list\n";
+	print SH "cat $shpath/*admixture.o|grep \"CV error\" >$outpath/CV.error.txt\n";
+	print SH "Rscript --vanilla $shpath/admixture.R $p\n";
+	close SH;
+
+	`sh $shpath/step3_admixture.sh 1>$shpath/step3_admixture.sh.o 2>$shpath/step3_admixture.sh.e` unless ($skipsh ==1);
+}
+
+sub PCA{
+	#plink --bfile ../SNP_prunning/prunedData --pca --chr-set 95 no-xy no-mt no-y
+}
+#---------------------------------------04.InterPopulation------------------------------------------
+#################################
+#			   					#
+#      Step5 Divergence         #
+#			   					#
+#################################
+sub DIVERGENCE{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	my $outpath = "$cfg{args}{outdir}/04.InterPopulation/Divergence/";
+	my $shpath = "$cfg{args}{outdir}/NewShell/04.InterPopulation/Divergence/";
+
+	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
+	my $gzvcf = $cfg{step1}{variant_filtering}{vcf};
+
+	$cfg{step4}{divergence}{windowsize} = 50000 unless (defined $cfg{step4}{divergence}{windowsize});
+	$cfg{step4}{divergence}{scaffold_number_limit} = 6 unless (defined $cfg{step4}{divergence}{scaffold_number_limit});
+	$cfg{step4}{divergence}{scaffold_length_cutoff} = 1000000 unless (defined $cfg{step4}{divergence}{scaffold_length_cutoff});
+	
+	my $window_size = $cfg{step4}{divergence}{windowsize};
+	my $scaffold_number_limit = $cfg{step4}{divergence}{scaffold_number_limit};
+	my $scaffold_length_cutoff = $cfg{step4}{divergence}{scaffold_length_cutoff};
+
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
+	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
+	
+	my $pop_list = "$outpath/pop.list";
+	open OT, ">$pop_list";
+	foreach my $sample (keys %{$cfg{population}}){
+		print OT "$sample\t$cfg{population}{$sample}{'presumed population'}\n";
+	}
+	close OT;
+	###
+	`cp -f $Bin/lib/Divergence.R $shpath/Divergence.R`;
+
+	open SH, ">$shpath/Divergence.sh";
+	print SH "cd $outpath\n";
+	print SH "source activate py27\n";
+	print SH "#python /root/genomics_general/VCF_processing/parseVCF.py -i $gzvcf --skipIndels --minQual 0 --gtf flag=DP min=0 | gzip > $outpath/output.geno.gz\n";
+	### generate population pairwise information
+	open CL, ">$shpath/divergence.cmd.list";
+	for (my $i = 0; $i < @{$cfg{step4}{divergence}{poppair}}; $i++){
+		my $pop1 = $cfg{step4}{divergence}{poppair}->[$i]->{pop1};
+		my $pop2 = $cfg{step4}{divergence}{poppair}->[$i]->{pop2};
+		my $poppair = "$pop1-vs-$pop2";
+		
+		print SH "python /root/genomics_general/popgenWindows.py -w $window_size -m 5 -g output.geno.gz -f haplo -o $outpath/$poppair.csv.gz -T 5 -p $pop1 -p $pop2 --popsFile $pop_list\n" if ($cfg{args}{ploidy} == 1);
+		print SH "python /root/genomics_general/popgenWindows.py -w $window_size -m 5 -g output.geno.gz -f phased -o $outpath/$poppair.csv.gz -T 5 -p $pop1 -p $pop2 --popsFile $pop_list\n" if ($cfg{args}{ploidy} >= 2);
+		my $i=1;
+		foreach my $id(sort { $genome->{len}{$b} <=> $genome->{len}{$a} } keys %{$genome->{len}}){
+			if (($genome->{len}{$id}>=$scaffold_length_cutoff)&&($i<=$scaffold_number_limit)){
+				my @p;
+				push @p, $outpath; 
+				push @p, "$id.$poppair.csv";
+				push @p, "$id.$poppair.divergence.png";
+				push @p, $window_size;
+				push @p, $id;
+				my $p = join (' ',@p);
+			
+				open IDSH, ">$shpath/$id.$poppair.divergence.sh\n";
+				print IDSH "zcat $poppair.csv.gz\|grep -w \"$id\" >$outpath/$id.$poppair.csv\n";
+				print IDSH "Rscript --vanilla $shpath/Divergence.R $p\n";
+				close IDSH;
+
+				print CL "sh $shpath/$id.$poppair.divergence.sh 1>$shpath/$id.$poppair.divergence.sh.o 2>$shpath/$id.$poppair.divergence.sh.e\n";
+				$i++;
+			}
+		}
+	}
+	close CL;
+
+	print SH "source deactivate\n";
+	print SH "parallel -j 20 < $shpath/divergence.cmd.list\n";
+	close SH;
+
+	`sh $shpath/Divergence.sh 1>$shpath/Divergence.sh.o 2>$shpath/Divergence.sh.e` unless ($skipsh ==1);
+}	
+#---------------------------------------05.IntraPopulation------------------------------------------
+#################################
+#			   #
+#   	Step5_Diversity    		#
+#			   #
+#################################
+sub SLIDINGWINDOW{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/Slidingwindow/";
+	my $shpath = "$cfg{args}{outdir}/NewShell/05.IntraPopulation/Slidingwindow/";
+
+	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
+	my $gzvcf = $cfg{step1}{variant_filtering}{vcf};
+
+	my $localgzvcf = "$outpath/di_PASS.SNP.DP.vcf.gz";
+
+	$cfg{step5}{diversity}{windowsize} = 5000 unless (defined $cfg{step5}{diversity}{windowsize});
+	$cfg{step5}{diversity}{scaffold_number_limit} = 10000 unless (defined $cfg{step5}{diversity}{scaffold_number_limit});
+	$cfg{step5}{diversity}{scaffold_length_cutoff} = 5000 unless (defined $cfg{step5}{diversity}{scaffold_length_cutoff});
+	my $window_size = $cfg{step5}{diversity}{windowsize};
+	my $scaffold_number_limit = $cfg{step5}{diversity}{scaffold_number_limit};
+	my $scaffold_length_cutoff = $cfg{step5}{diversity}{scaffold_length_cutoff};
+
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
+	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
+
+	### circle all the populations
+	my %pop;
+	foreach my $sample (keys %{$cfg{population}}){
+		unless (exists $pop{$cfg{population}{$sample}{'presumed population'}}{line}){
+			$pop{$cfg{population}{$sample}{'presumed population'}}{count} = 0;
+			$pop{$cfg{population}{$sample}{'presumed population'}}{line} = "";
+		}
+		$pop{$cfg{population}{$sample}{'presumed population'}}{count}++;
+		$pop{$cfg{population}{$sample}{'presumed population'}}{line} .= "$sample\n";
+	}
+
+	`cp -f $Bin/lib/Diversity.R $shpath/Diversity.R`;
+	open SH, ">$shpath/Diversity.sh";
+	print SH "cd $outpath\n";
+	
+	# prepare for a psudo-diploid vcf file for haploid 
+	if ($cfg{args}{ploidy} == 1){
+	print SH <<EOF;
+zcat $gzvcf|java -jar /root/jvarkit/dist/vcffilterjdk.jar -e 'return new VariantContextBuilder(variant).genotypes(variant.getGenotypes().stream().map(G->!G.isCalled()?GenotypeBuilder.createMissing(G.getSampleName(),2):G).map(G->G.isCalled() && G.getPloidy()==1?new GenotypeBuilder(G).alleles(Arrays.asList(G.getAllele(0),G.getAllele(0))).make():G).collect(Collectors.toList())).attribute("AC",variant.getGenotypes().stream().mapToInt(G->G.isCalled() && G.getPloidy()==1 && !G.getAllele(0).isReference()?2:G.getAlleles().size()).sum()).attribute("AN",variant.getGenotypes().stream().mapToInt(G->G.isCalled() && G.getPloidy()==1 ?2:G.getAlleles().size()).sum()).make();'|bgzip -c >$localgzvcf
+EOF
+}else{
+	print SH "cp -f $gzvcf $localgzvcf\n";
+}	
+	#generate a scaffold size list
+	open SL, ">$outpath/chr.size.list";
+	foreach my $id(sort { $genome->{len}{$b} <=> $genome->{len}{$a} } keys %{$genome->{len}}){
+		print SL "$id\t$genome->{len}{$id}\n";
+	}close SL;
+
+	open CL1, ">$shpath/diversity.cmd1.list";
+	open CL2, ">$shpath/diversity.cmd2.list";
+	open CL3, ">$shpath/diversity.cmd3.list";
+	open CL4, ">$shpath/diversity.cmd4.list";
+	open CL5, ">$shpath/diversity.cmd5.list";
+
+	#loop for each available population
+	foreach my $pop_name (keys %pop){
+		next unless ($pop{$pop_name}{count} > 6);
+		open OT, ">$outpath/$pop_name.list";
+		print OT $pop{$pop_name}{line};
+		close OT;
+		# generate a vcf file for each population
+		print CL1 "vcftools --gzvcf $localgzvcf --keep $outpath/$pop_name.list --recode --stdout |bgzip -c >$outpath/$pop_name.SNP.vcf.gz\n";
+		print CL1 "vcftools --gzvcf $outpath/snpEff.nonsyn.vcf.gz --keep $outpath/$pop_name.list --recode --stdout |bgzip -c >$outpath/$pop_name.snpEff.nonsyn.vcf.gz\n";
+		print CL1 "vcftools --gzvcf $outpath/snpEff.syn.vcf.gz --keep $outpath/$pop_name.list --recode --stdout |bgzip -c >$outpath/$pop_name.snpEff.syn.vcf.gz\n";
+		
+		# calculate syn and nonsyn diversity values in each sliding window
+		print CL2 "vcftools --gzvcf $outpath/$pop_name.snpEff.nonsyn.vcf.gz --window-pi $window_size --stdout >$outpath/$pop_name.snpEff.nonsyn.pi.list\n";
+		print CL2 "vcftools --gzvcf $outpath/$pop_name.snpEff.syn.vcf.gz --window-pi $window_size --stdout >$outpath/$pop_name.snpEff.syn.pi.list\n";
+		print CL3 "PiSynNonSyn.pl $outpath/$pop_name.snpEff.nonsyn.pi.list $outpath/$pop_name.snpEff.nonsyn.pi.list SynSitesBin.list >$outpath/$pop_name.PiSynNonSyn.list\n";
+		
+		# plot diversity
+		my $i = 1;
+		foreach my $id(sort { $genome->{len}{$b} <=> $genome->{len}{$a} } keys %{$genome->{len}}){
+			if (($genome->{len}{$id}>=$scaffold_length_cutoff)&&($i<=$scaffold_number_limit)){
+				
+				my $len=$genome->{len}{$id};
+				my $bigwin=11*$window_size;
+				#print CL2 "vcftools --gzvcf $outpath/$pop_name.SNP.vcf.gz --chr $id --ldhat-geno --out $outpath/$id.$pop_name.ldhat.input\n";
+				print CL4 "python /root/diploSHIC/diploSHIC.py fvecVcf diploid $outpath/$pop_name.SNP.vcf.gz $id $len $outpath/$id.$pop_name.SNP.fvec --winSize $bigwin --statFileName $outpath/$id.$pop_name.stat.result 1>$shpath/$id.$pop_name.stat.result.o 2>$shpath/$id.$pop_name.stat.result.e\n";
+				
+				my @p;
+				push @p, $outpath; 
+				push @p, "$id.$pop_name.Pi.list";
+				push @p, "$id.$pop_name.SNPdensity.list";
+				push @p, "$id.$pop_name.TajimaD.list";
+				push @p, "$id.$pop_name.diversity.png";
+				push @p, "$id.$pop_name.TajimaD.png";
+				push @p, $pop{$pop_name}{count};
+				push @p, $window_size;
+				push @p, $id;
+				my $p = join (' ',@p);
+				
+				open IDSH, ">$shpath/$id.$pop_name.diversity.sh";
+				print IDSH "grep -w \"$id\" $outpath/$pop_name.Pi.list >$outpath/$id.$pop_name.Pi.list\n";
+				print IDSH "grep -w \"$id\" $outpath/$pop_name.SNPdensity.list >$outpath/$id.$pop_name.SNPdensity.list\n";
+				print IDSH "grep -w \"$id\" $outpath/$pop_name.TajimaD.list >$outpath/$id.$pop_name.TajimaD.list\n";
+				print IDSH "Rscript --vanilla $shpath/Diversity.R $p\n";
+				close IDSH;
+				print CL5 "sh $shpath/$id.$pop_name.diversity.sh 1>$shpath/$id.$pop_name.diversity.sh.o 2>$shpath/$id.$pop_name.diversity.sh.e\n";
+
+				$i++;
+			}
+		}
+	}
+	close CL1;
+	close CL2;
+	close CL3;
+	close CL4;
+	close CL5;
+	###
+	### annotate  vcf file
+	print SH "snpEff $cfg{step5}{diversity}{snpeff_species} $localgzvcf |bgzip -c >$outpath/snpEff.vcf.gz\n";
+	### extract nonsyn snvs
+	print SH "zcat $outpath/snpEff.vcf.gz |SnpSift filter \"(ANN[*].BIOTYPE has 'protein_coding') & ((ANN[*].EFFECT has 'missense_variant') | (ANN[*].EFFECT = 'start_lost')| (ANN[*].EFFECT = 'stop_gained')| (ANN[*].EFFECT = 'stop_lost'))\" |perl -ne 'if(/#/){print;}elsif(/ANN/){s/ANN\\S+/./g;print;}else{print;}'|bgzip -c >$outpath/snpEff.nonsyn.vcf.gz\n";
+	### extract syn snvs
+	print SH "zcat $outpath/snpEff.vcf.gz |SnpSift filter \"(ANN[*].BIOTYPE has 'protein_coding') & ((ANN[*].EFFECT = 'synonymous_variant') | (ANN[*].EFFECT = 'stop_retained_variant') | (ANN[*].EFFECT = 'start_retained'))\" |perl -ne 'if(/#/){print;}elsif(/ANN/){s/ANN\\S+/./g;print;}else{print;}'|bgzip -c >$outpath/snpEff.syn.vcf.gz\n";
+	print SH "Number_syn_nonsyn_sites.pl $cfg{ref}{db}{$cfg{ref}{choose}}{path} $cfg{step5}{diversity}{gff} test >$outpath/nonsyn.sites.list\n";
+	print SH "SynSitesBin.pl chr.size.list $outpath/nonsyn.sites.list |grep -v NULL|sort -k1,1 -k2,2n >$outpath/SynSitesBin.list\n";
+	print SH "parallel -j 20 < $shpath/diversity.cmd1.list\n";
+	print SH "parallel -j 20 < $shpath/diversity.cmd2.list\n";
+	print SH "parallel -j 20 < $shpath/diversity.cmd3.list\n";
+	print SH "parallel -j 20 < $shpath/diversity.cmd4.list\n";
+	print SH "#parallel -j 20 < $shpath/diversity.cmd5.list\n";
+	close SH;
+
+	
+	`sh $shpath/Diversity.sh 1>$shpath/Diversity.sh.o 2>$shpath/Diversity.sh.e` unless ($skipsh ==1);
+
+	# create this yaml object
+	$yaml = YAML::Tiny->new( \%cfg );
+	# Save both documents to a file
+	$yaml->write( $yml_file );
+}
+
+#################################
+#			   #
+#   	Step5_Homozygosity   	#
+#			   #
+#################################
+sub HOMOZYGOSITY{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/Homozygosity/";
+	my $shpath = "$cfg{args}{outdir}/NewShell/05.IntraPopulation/Homozygosity/";
+
+	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
+	my $gzvcf = $cfg{step1}{variant_filtering}{high_confidence_vcf};
+
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
+	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
+
+	my %pop;
+	foreach my $sample (keys %{$cfg{population}}){
+		unless (exists $pop{$cfg{population}{$sample}{'presumed population'}}{line}){
+			$pop{$cfg{population}{$sample}{'presumed population'}}{count} = 0;
+			$pop{$cfg{population}{$sample}{'presumed population'}}{line} = "";
+		}
+		$pop{$cfg{population}{$sample}{'presumed population'}}{count}++;
+		$pop{$cfg{population}{$sample}{'presumed population'}}{line} .= "$sample\n";
+	}
+
+	open SH, ">$shpath/Homozygosity.sh";
+	foreach my $pop_name (keys %pop){
+		next unless ($pop{$pop_name}{count} > 4);
+		open OT, ">$outpath/$pop_name.list";
+		print OT $pop{$pop_name}{line};
+		close OT;
+
+		print SH "cd $outpath;vcftools --gzvcf $gzvcf --keep $outpath/$pop_name.list --het --stdout ",'|perl -ne \'if(/INDV/){print "INDV\tO_HOM\tE_HOM\tN_SITES\tPERCENTAGE\tF\n";}else{@a=split /\t/;$p=$a[1]/$a[3]*100;$p=sprintf("%.2f", $p);print "$a[0]\t$a[1]\t$a[2]\t$a[3]\t$p\t$a[4]";}\'', ">$pop_name.het.list\n";
+	}	
+	close SH;
+
+	`sh $shpath/Homozygosity.sh 1>$shpath/Homozygosity.sh.o 2>$shpath/Homozygosity.sh.e` unless ($skipsh ==1);
+
+}
+#################################
+#			   #
+#   	Step5_ROH			   	#
+#			   #
+#################################
+sub ROH{
+
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/ROH/";
+	my $shpath = "$cfg{args}{outdir}/NewShell/05.IntraPopulation/ROH/";
+	my $gzvcf = $cfg{step1}{variant_filtering}{high_confidence_vcf};
+	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
+
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
+	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
+
+	$cfg{step5}{ROH}{windowsize} = 100 unless (defined $cfg{step5}{ROH}{windowsize});
+	$cfg{step5}{ROH}{scaffold_number_limit} = 95 unless (defined $cfg{step5}{ROH}{scaffold_number_limit});
+	$cfg{step5}{ROH}{scaffold_length_cutoff} = 1000000 unless (defined $cfg{step5}{ROH}{scaffold_length_cutoff});
+	my $window_size = $cfg{step5}{ROH}{windowsize};
+	my $scaffold_number_limit = $cfg{step5}{ROH}{scaffold_number_limit};
+	my $scaffold_length_cutoff = $cfg{step5}{ROH}{scaffold_length_cutoff};
+
+	### load reference and map scaffold to number list 
+	my $i=1;my $j=0;
+	open OT, ">$outpath/chr_map.list";
+	foreach my $id(sort { $genome->{len}{$b} <=> $genome->{len}{$a} } keys %{$genome->{len}}){
+		print OT "$id\t$i\n";
+		$i++;
+		if (($genome->{len}{$id} >= $cfg{step5}{ROH}{scaffold_length_cutoff})&&($j < $cfg{step5}{ROH}{scaffold_number_limit})){
+			$j++;
+		}
+	}
+	close OT;
+
+	$cfg{step5}{ROH}{scaffold_number_limit} = $j;
+
+	my %pop;
+	foreach my $sample (keys %{$cfg{population}}){
+		unless (exists $pop{$cfg{population}{$sample}{'presumed population'}}{line}){
+			$pop{$cfg{population}{$sample}{'presumed population'}}{count} = 0;
+			$pop{$cfg{population}{$sample}{'presumed population'}}{line} = "";
+		}
+		$pop{$cfg{population}{$sample}{'presumed population'}}{count}++;
+		$pop{$cfg{population}{$sample}{'presumed population'}}{line} .= "$sample\n";
+	}
+
+	foreach my $pop_name (keys %pop){
+		next unless ($pop{$pop_name}{count} > 4);
+		open SH, ">$shpath/ROH.sh";
+		open OT, ">$outpath/$pop_name.list";
+		print OT $pop{$pop_name}{line};
+		close OT;
+		print SH "cd $outpath\n";
+		print SH 'bcftools annotate --threads 10 --rename-chrs', " $outpath/chr_map.list" ," $gzvcf", '|perl -ne \'if (/#\S+ID=(\d+)/){if($1<=',"$scaffold_number_limit",'){print;}}elsif(/^#/){print;}elsif(/^(\d+)\s+/){if($1<= ',"$scaffold_number_limit",'){print;}}\'', ">$outpath/$pop_name.pre.vcf\n"; 
+		print SH "vcftools --vcf $outpath/$pop_name.pre.vcf --keep $outpath/$pop_name.list --plink --out $pop_name.plink \n";
+		print SH "plink --file $pop_name.plink --make-bed --chr-set $scaffold_number_limit no-xy no-mt no-y --out $pop_name.plink\n";
+		print SH "plink --bfile $outpath/$pop_name.plink --chr-set $scaffold_number_limit no-xy no-mt no-y --homozyg --homozyg-window-het 2 --homozyg-kb $window_size --homozyg-gap 50 --homozyg-window-snp 100 --homozyg-window-missing 5 --out $pop_name\n";
+		close SH; 
+	}
+	`sh $shpath/ROH.sh 1>$shpath/ROH.sh.o 2>$shpath/ROH.sh.e` unless ($skipsh ==1);
+}
+#################################
+#			   #
+#   	Step5_LD			   	#
+#
+#################################
+sub LD{
+	my ($yml_file,$skipsh) = @_;
+	my $ori_gzvcf;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/LD/";
+	my $shpath = "$cfg{args}{outdir}/NewShell/05.IntraPopulation/LD/";
+
+	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
+	my $gzvcf = $cfg{step1}{variant_filtering}{high_confidence_vcf};
+	if ($cfg{args}{ploidy} == 1 ){
+		$ori_gzvcf = $gzvcf;
+		$gzvcf = "$outpath/diploid.high_confidence.vcf.gz";
+	}
+
+	$cfg{step5}{ld}{scaffold_number_limit} = 5000 unless (defined $cfg{step5}{ld}{scaffold_number_limit});
+	$cfg{step5}{ld}{scaffold_length_cutoff} = 5000 unless (defined $cfg{step5}{ld}{scaffold_length_cutoff});
+	my $scaffold_number_limit = $cfg{step5}{ld}{scaffold_number_limit};
+	my $scaffold_length_cutoff = $cfg{step5}{ld}{scaffold_length_cutoff};
+
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
+	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
+
+	my %pop;
+	foreach my $sample (keys %{$cfg{population}}){
+		unless (exists $pop{$cfg{population}{$sample}{'presumed population'}}{line}){
+			$pop{$cfg{population}{$sample}{'presumed population'}}{count} = 0;
+			$pop{$cfg{population}{$sample}{'presumed population'}}{line} = "";
+		}
+		$pop{$cfg{population}{$sample}{'presumed population'}}{count}++;
+		$pop{$cfg{population}{$sample}{'presumed population'}}{line} .= "$sample\n";
+	}
+
+	`cp -f $Bin/lib/LD.R $shpath/LD.R`;
+	open SH, ">$shpath/LD.sh";
+	if ($cfg{args}{ploidy} == 1 ){
+		print SH <<EOF;
+zcat $ori_gzvcf|java -jar /root/jvarkit/dist/vcffilterjdk.jar -e 'return new VariantContextBuilder(variant).genotypes(variant.getGenotypes().stream().map(G->!G.isCalled()?GenotypeBuilder.createMissing(G.getSampleName(),2):G).map(G->G.isCalled() && G.getPloidy()==1?new GenotypeBuilder(G).alleles(Arrays.asList(G.getAllele(0),G.getAllele(0))).make():G).collect(Collectors.toList())).attribute("AC",variant.getGenotypes().stream().mapToInt(G->G.isCalled() && G.getPloidy()==1 && !G.getAllele(0).isReference()?2:G.getAlleles().size()).sum()).attribute("AN",variant.getGenotypes().stream().mapToInt(G->G.isCalled() && G.getPloidy()==1 ?2:G.getAlleles().size()).sum()).make();'|bgzip -c >$gzvcf
+EOF
+	}
+	open CL, ">$shpath/LD.cmd.list";
+	foreach my $pop_name (keys %pop){
+		next unless ($pop{$pop_name}{count} > 6);
+		open OT, ">$outpath/$pop_name.list";
+		print OT $pop{$pop_name}{line};
+		close OT;
+
+		#write a script to generate a vcf file for each population
+		open CLSH, ">$shpath/$pop_name.LD.sh";
+		print CLSH "cd $outpath\n";
+		print CLSH "vcftools --gzvcf $gzvcf --keep $outpath/$pop_name.list --recode --stdout |bgzip -c >$outpath/$pop_name.SNP.vcf.gz\n";
+		print CLSH "vcftools --gzvcf $pop_name.SNP.vcf.gz --singletons --stdout >$outpath/$pop_name.out.singletons\n";
+		print CLSH "vcftools --gzvcf $outpath/$pop_name.SNP.vcf.gz --exclude-positions $outpath/$pop_name.out.singletons --recode --stdout |bgzip -c  >$outpath/$pop_name.SNP.noSingle.vcf.gz\n";
+		
+		my $i=1;
+		open PCL, ">$shpath/$pop_name.LD.cmd.list";
+
+#		open RIN, ">$outpath/$pop_name.R.input";
+		open GRIN, ">$outpath/$pop_name.GLD.R.input";
+		foreach my $id(sort { $genome->{len}{$b} <=> $genome->{len}{$a} } keys %{$genome->{len}}){
+			if (($genome->{len}{$id}>=$scaffold_length_cutoff)&&($i<=$scaffold_number_limit)){
+
+				open IDSH, ">$shpath/$pop_name.$id.LD.sh";
+				print IDSH "cd $outpath\n";
+				print IDSH "vcftools --gzvcf $pop_name.SNP.noSingle.vcf.gz --chr $id --recode --stdout |bgzip -c  >$pop_name.$id.SNP.noSingle.vcf.gz\n";
+				print IDSH "rm -rf $pop_name.$id.SNP.noSingle.beagl*\n";
+				print IDSH "beagle gt=$pop_name.$id.SNP.noSingle.vcf.gz out=$pop_name.$id.SNP.noSingle.beagle\n";
+#				print IDSH "vcftools --gzvcf $pop_name.$id.SNP.noSingle.beagle.vcf.gz --hap-r2 --ld-window-bp 1000000 --stdout |grep -v nan > $pop_name.$id.LD_window_1M.list\n";
+				print IDSH "vcftools --gzvcf $pop_name.$id.SNP.noSingle.beagle.vcf.gz --geno-r2 --ld-window-bp 1000000 --stdout |grep -v nan > $pop_name.$id.GLD_window_1M.list\n";
+#				print IDSH "cat $pop_name.$id.LD_window_1M.list",'|sed 1,1d | awk -F " " \'function abs(v) {return v < 0 ? -v : v}BEGIN{OFS="\t"}{print abs($3-$2),$5}\''," >$pop_name.$id.LD_window_1M.summary\n";
+				print IDSH "cat $pop_name.$id.GLD_window_1M.list",'|sed 1,1d | awk -F " " \'function abs(v) {return v < 0 ? -v : v}BEGIN{OFS="\t"}{print abs($3-$2),$5}\''," >$pop_name.$id.GLD_window_1M.summary\n";
+				close IDSH;
+
+				print PCL "sh $shpath/$pop_name.$id.LD.sh 1>$shpath/$pop_name.$id.LD.sh.o 2>$shpath/$pop_name.$id.LD.sh.e\n";
+#				print RIN "$pop_name.$id.LD_window_1M.summary\n";
+				print GRIN "$pop_name.$id.GLD_window_1M.summary\n";
+				$i++;
+			}
+		}
+#		close RIN;
+		close GRIN;
+
+		close PCL;
+		print CLSH "parallel -j 40 < $shpath/$pop_name.LD.cmd.list\n"; # parallel run PCL 
+		
+#		my @p;
+#		push @p, $outpath; 
+#		push @p, "$pop_name.R.input";
+#		push @p, "$pop_name.LD.png";
+#		my $p = join (' ',@p);
+#		print CLSH "Rscript --vanilla $shpath/LD.R $p\n";
+
+		my @gp;
+		push @gp, $outpath; 
+		push @gp, "$pop_name.GLD.R.input";
+		push @gp, "$pop_name.GLD.png";
+		my $gp = join (' ',@gp);
+		print CLSH "Rscript --vanilla $shpath/LD.R $gp\n";
+
+		close CLSH;
+
+		print CL "sh $shpath/$pop_name.LD.sh 1>$shpath/$pop_name.LD.sh.o 2>$shpath/$pop_name.LD.sh.e\n";		
+	}
+	close CL;
+	print SH "parallel -j 20 < $shpath/LD.cmd.list\n";
+	close SH;
+
+	`sh $shpath/LD.sh 1>$shpath/LD.sh.o 2>$shpath/LD.sh.e` unless ($skipsh ==1);
+
+}
+
+#---------------------------------------06.DemographicHistory------------------------------------------
+sub SFS{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/SFS/";
+	my $shpath = "$cfg{args}{outdir}/NewShell/05.IntraPopulation/SFS/";
+	my $slidingwindowpath = "$cfg{args}{outdir}/05.IntraPopulation/Slidingwindow/";
+
+	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
+	my $gzvcf = $cfg{step1}{variant_filtering}{vcf};
+	my $localgzvcf = "$slidingwindowpath/di_PASS.SNP.DP.vcf.gz";
+	#$localgzvcf = $gzvcf if ($cfg{args}{ploidy} == 2);
+
+	$cfg{step5}{diversity}{windowsize} = 5000 unless (defined $cfg{step5}{diversity}{windowsize});
+	$cfg{step5}{diversity}{scaffold_number_limit} = 6 unless (defined $cfg{step5}{diversity}{scaffold_number_limit});
+	$cfg{step5}{diversity}{scaffold_length_cutoff} = 1000000 unless (defined $cfg{step5}{diversity}{scaffold_length_cutoff});
+	my $window_size = $cfg{step5}{diversity}{windowsize};
+	my $scaffold_number_limit = $cfg{step5}{diversity}{scaffold_number_limit};
+	my $scaffold_length_cutoff = $cfg{step5}{diversity}{scaffold_length_cutoff};
+
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
+	if (
+	 !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
+
+	open SH, ">$shpath/SFS.sh";
+
+	open CL1, ">$shpath/SFS.cmd1.list";
+
+	#loop for each available population
+	my %pop;
+	foreach my $sample (keys %{$cfg{population}}){
+		unless (exists $pop{$cfg{population}{$sample}{'presumed population'}}{line}){
+			$pop{$cfg{population}{$sample}{'presumed population'}}{count} = 0;
+			$pop{$cfg{population}{$sample}{'presumed population'}}{line} = "";
+		}
+		$pop{$cfg{population}{$sample}{'presumed population'}}{count}++;
+		$pop{$cfg{population}{$sample}{'presumed population'}}{line} .= "$sample\tpop1\n";
+	}
+	foreach my $pop_name (keys %pop){
+		next unless ($pop{$pop_name}{count} > 6);
+		open OT, ">$outpath/$pop_name.list";
+		print OT $pop{$pop_name}{line};
+		close OT;
+
+		my $pop_size = 2* $pop{$pop_name}{count};
+		if ($cfg{args}{ploidy} == 1 ){ $pop_size = $pop{$pop_name}{count};}
+		#$slidingwindowpath/$pop_name.SNP.vcf.gz\n";
+		#$slidingwindowpath/pop_name.snpEff.nonsyn.vcf.gz
+		#$slidingwindowpath/pop_name.snpEff.syn.vcf.gz
+		open IDSH, ">$shpath/$pop_name.SFS.sh";
+		print IDSH "mkdir -p $outpath/$pop_name && cd $outpath/$pop_name\n";
+		### project SFS from the file
+		print IDSH "easySFS.py -i $slidingwindowpath/$pop_name.SNP.vcf.gz -p $outpath/$pop_name.list --ploidy $cfg{args}{ploidy} --proj $pop_size -f -a && mv $outpath/$pop_name/output $outpath/$pop_name/total_sfs \n";
+		print IDSH "easySFS.py -i $slidingwindowpath/$pop_name.snpEff.nonsyn.vcf.gz -p $outpath/$pop_name.list --ploidy $cfg{args}{ploidy} --proj $pop_size -f -a && mv $outpath/$pop_name/output $outpath/$pop_name/nonsyn_sfs \n";
+		print IDSH "easySFS.py -i $slidingwindowpath/$pop_name.snpEff.syn.vcf.gz -p $outpath/$pop_name.list --ploidy $cfg{args}{ploidy} --proj $pop_size -f -a && mv $outpath/$pop_name/output $outpath/$pop_name/syn_sfs \n";
+
+		print IDSH "cp -f $Bin/lib/1PopBot20Mb.est $outpath/$pop_name/ && cp -f $Bin/lib/1PopBot20Mb.tpl $outpath/$pop_name/ && cp -f $outpath/$pop_name/total_sfs/fastsimcoal2/pop1_MAFpop0.obs $outpath/$pop_name/1PopBot20Mb_MAFpop0.obs\n";
+		print IDSH "sed -i `s/18/$pop_size/g` $outpath/$pop_name/1PopBot20Mb_MAFpop0.obs\n";
+		for (my $i = 0; $i <10; $i++){
+			print IDSH "fsc26 -t 1PopBot20Mb.tpl -e 1PopBot20Mb.est -n 10000 -d -M -L 40 -q -0 -c 40 -B 40 --foldedSFS\ncp -r 1PopBot20Mb 1PopBot20Mb.b$i\n";
+		}
+		print IDSH "cat $outpath/$pop_name/1PopBot20Mb.b*/1PopBot20Mb.bestlhoods | grep -v NCUR |sort -k1,1n > $outpath/$pop_name/EstimatedNe.list\n";
+		close IDSH;
+		print CL1 "sh $shpath/$pop_name.SFS.sh 1>$shpath/$pop_name.SFS.sh.o 2>$shpath/$pop_name.SFS.sh.e\n";
+	}
+	close CL1;
+	print SH "parallel -j 40 < $shpath/SFS.cmd1.list\n";
+	close SH;
+
+	#`sh $shpath/SFS.sh 1>$shpath/SFS.sh.o 2>$shpath/SFS.sh.e` unless ($skipsh ==1);
+	open SH, ">$shpath/Simulation.sh";
+	foreach my $pop_name (keys %pop){
+		next unless ($pop{$pop_name}{count} > 6);
+		open NELT, "$outpath/$pop_name/EstimatedNe.list";
+		my @nelt = <NELT>;
+		close NELT;
+
+		my $length = @nelt;
+		my @a = split /\s+/, $nelt[$length/2];
+		print "$a[0]\n";
+
+		my $m_rate=0.000000025;
+		my $Bigwindowsize = 11*$cfg{step5}{diversity}{windowsize};
+		my $Ne = $a[0];
+		my $Nan = $a[1];
+		my $Nbot = $a[2];
+		my $Tbot = $a[3];
+		my $Tan = $a[6];
+
+		my $Pt_min = 4 * $Ne * $m_rate * $Bigwindowsize/3.16227766;
+		my $Pt_max = 4 * $Ne * $m_rate * $Bigwindowsize * 3.16227766;
+		my $Pre_min = 4 * $Ne * $m_rate * $Bigwindowsize/3.16227766;
+		my $Pre_max = 4 * $Ne * $m_rate * $Bigwindowsize * 3.16227766;
+		my $Pa_min = 4 * $Ne * 0.01/3.16227766;
+		my $Pa_max = 4 * $Ne * 1 * 3.16227766;
+		my $T = 10000/$Ne;
+
+		my $step = 1/11;
+		my $init = 0.5/11;
+		my $pop_size = 2*$pop{$pop_name}{count};
+
+		open SIMUCL, ">$shpath/$pop_name.Simulation.cmd.list";
+		open FVECCL, ">$shpath/$pop_name.SimFvec.cmd.list";
+		for (my $i=0; $i<11;$i++){
+			my $x = $init + $step*$i;
+
+			# run simulated 
+			print SIMUCL "#/root/discoal/discoal $pop_size 1000 $Bigwindowsize -Pt ", $Pt_min, " ", $Pt_max, " -Pre ", $Pt_min, " ", $Pt_max, " -Pa ", $Pa_min, " ", $Pa_max, " -Pu 0.000000 0.000040 -ws 0 ";
+			print SIMUCL "-en ", $Tbot/$Ne, " 0 ", $Nbot/$Ne, " -en ", $Tan/$Ne, " 0 ", $Nan/$Ne;
+			print SIMUCL " -x $x >$outpath/$pop_name/hard_$i.msOut\n";
+			print FVECCL "python /root/diploSHIC/diploSHIC.py fvecSim diploid hard_$i.msOut hard_$i.fvec --totalPhysLen $Bigwindowsize\n";
+
+			print SIMUCL "/root/discoal/discoal $pop_size 1000 $Bigwindowsize -Pt ", $Pt_min, " ", $Pt_max, " -Pre ", $Pt_min, " ", $Pt_max, " -Pa ", $Pa_min, " ", $Pa_max, " -Pu 0.000000 0.000040 -ws 0 -Pf 0 0.2 ";
+			print SIMUCL "-en ", $Tbot/$Ne, " 0 ", $Nbot/$Ne, " -en ", $Tan/$Ne, " 0 ", $Nan/$Ne;
+			print SIMUCL " -x $x >$outpath/$pop_name/soft_$i.msOut\n";
+			print FVECCL "python /root/diploSHIC/diploSHIC.py fvecSim diploid soft_$i.msOut soft_$i.fvec --totalPhysLen $Bigwindowsize\n";
+		}
+		print SIMUCL "#/root/discoal/discoal $pop_size 1000 $Bigwindowsize -Pt ", $Pt_min, " ", $Pt_max, " -Pre ", $Pt_min, " ", $Pt_max;
+		print SIMUCL " -en ", $Tbot/$Ne, " 0 ", $Nbot/$Ne, " -en ", $Tan/$Ne, " 0 ", $Nan/$Ne;
+		print SIMUCL " >$outpath/$pop_name/neut.msOut\n";
+		print FVECCL "python /root/diploSHIC/diploSHIC.py fvecSim diploid neut.msOut neut.fvec --totalPhysLen $Bigwindowsize\n";
+		close SIMUCL;
+
+		print SH "cd $outpath/$pop_name/\n";
+		print SH "parallel -j 23 < $shpath/$pop_name.Simulation.cmd.list\n";
+		print SH "#parallel -j 23 < $shpath/$pop_name.SimFvec.cmd.list\n";
+		print SH "#mkdir -p $outpath/$pop_name/rawFVFiles && mv $outpath/$pop_name/*.fvec rawFVFiles/\n";
+		print SH "#mkdir -p $outpath/$pop_name/trainingSets\n";
+		print SH "#python /root/diploSHIC/diploSHIC.py makeTrainingSets rawFVFiles/neut.fvec rawFVFiles/soft rawFVFiles/hard 5 0,1,2,3,4,6,7,8,9,10 trainingSets/\n";
+		print SH "#python /root/diploSHIC/diploSHIC.py train trainingSets/ trainingSets/ bfsModel\n"
+	}
+	close SH;
+	`sh $shpath/Simulation.sh 1>$shpath/Simulation.sh.o 2>$shpath/Simulation.sh.e` unless ($skipsh ==1);
+
+}
+
+#---------------------------------------07.Selection------------------------------------------------
+sub MKTEST{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	my $outpath = "$cfg{args}{outdir}/06.Selection/MKtest/";
+	my $shpath = "$cfg{args}{outdir}/NewShell/06.Selection/MKtest/";
+
+	#my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
+	my $gzvcf = $cfg{step1}{variant_filtering}{high_confidence_vcf};
+
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
+	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
+
+	print "$cfg{step6}{mktest}{mclgroup}\n";
+	open IN, $cfg{step6}{mktest}{mclgroup};
+	my @label = ($cfg{step6}{mktest}{label1}, $cfg{step6}{mktest}{label2});
+	print "$cfg{step6}{mktest}{label1}\t$cfg{step6}{mktest}{label2}\n";
+	open OT, ">$outpath/sco_pair.list";
+	while (<IN>){
+		my $flag = 0;
+		foreach my $label (@label){
+			my $c = () = ($_ =~ /$label\|/g);
+			$flag ++ if ($c == 1);
+		}
+		if ($flag == @label){
+        	foreach my $label (@label){
+				if ($_ =~ /$label\|(\S+)/){print OT "$1\t";}
+			}
+			print OT "\n";
+		}
+	}
+	close OT;
+	close IN;
+
+	my $genepair = "$outpath/sco_pair.list";
+	my $cds1 = $cfg{step6}{mktest}{cds1};
+	my $cds2 = $cfg{step6}{mktest}{cds2};
+
+	my $cdsio1  = Bio::SeqIO->new(-format => 'fasta', -file   => $cds1);
+	my %cds1;
+	while (my $cdsobj = $cdsio1->next_seq){ $cds1{$cdsobj->display_id}=$cdsobj->seq;}
+
+	my $cdsio2  = Bio::SeqIO->new(-format => 'fasta', -file   => $cds2);
+	my %cds2;
+	while (my $cdsobj = $cdsio2->next_seq){ $cds2{$cdsobj->display_id}=$cdsobj->seq;}
+
+	open CL, ">$shpath/aln.cmd.list";
+	if ( !-d "$outpath/prank_alignment" ) {make_path "$outpath/prank_alignment" or die "Failed to create path: $outpath/prank_alignment";}
+	if ( !-d "$shpath/prank_alignment" ) {make_path "$shpath/prank_alignment" or die "Failed to create path: $shpath/prank_alignment";}
+	open IN, $genepair;
+	while (<IN>){
+    	my @a = split /\t/;
+    	my $out = $a[0].".multi.cds";
+    	
+    	open OUT, ">$outpath/prank_alignment/$out";
+    	print OUT ">$a[0]\n$cds1{$a[0]}\n";
+    	print OUT ">$a[1]\n$cds2{$a[1]}\n";
+    	close OUT;
+   		
+   		print CL "prank -d=$outpath/prank_alignment/$out -o=$outpath/prank_alignment/$out -translate -F 1>$shpath/prank_alignment/$out.prank.sh.o 2>$shpath/prank_alignment/$out.prank.sh.e &\n";    	
+	}
+	close IN;
+	close CL;
+
+	open SH, ">$shpath/MKtest.sh";
+	print SH "cd $outpath/prank_alignment\n";
+	print SH "parallel -j 40 < $shpath/aln.cmd.list\n";
+	print SH "sed -i 's/NNN/---/g' $outpath/prank_alignment/*.nuc.fas\n";
+	print SH "evaluate_alignment_quality.pl >$outpath/filtered.SCO.list\n";
+	print SH "DetectSynandNonSyn.pl black $outpath/prank_alignment/multi.cds.best.nuc.fas\n";
+	print SH "select_hash.pl $outpath/filtered.SCO.list black_syn_nonsyn.txt >$outpath/Divergence.txt\n";
+	print SH "snpEff $cfg{step6}{mktest}{snpeff_species} $gzvcf |bgzip -c >$outpath/snpEff.vcf.gz\n";
+	print SH "step6.polymorphism.pl $outpath/prank_alignment/snpEff_genes.txt >$outpath/polymorphism.txt\n";
+	print SH "MK-test.pl $outpath/polymorphism.txt $outpath/Divergence.txt >$outpath/MK-test.SCO.result\n";
+	close SH;
+
+	#`sh $shpath/MKtest.sh 1>$shpath/MKtest.sh.o 2>$shpath/MKtest.sh.e` unless ($skipsh ==1);
+
+	open IN, "$outpath/polymorphism.txt";
+	my $piN = 0; 
+	my $piS = 0;
+	while (<IN>){
+		my @a = split /\s+/;
+		#print "$a[1]\t$a[2]\n";
+		$piN = $piN + $a[1];
+		$piS = $piS + $a[2];
+	}
+	close IN;
+	print "piN/PiS: ", $piN/$piS, "\n";
+}
+
+#################################
+#			  #
+#   	Step6_FST Outliers	   	#
+#			  #
+#################################
+sub FSTOUTLIERS{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	my $outpath = "$cfg{args}{outdir}/06.Selection/Fst_outliers/";
+	my $shpath = "$cfg{args}{outdir}/NewShell/06.Selection/Fst_outliers/";
+
+	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
+	my $gzvcf = $cfg{step1}{variant_filtering}{vcf};
+
+
+}
+
+#----------------------------------- other subroutines ---------------------------------------------
+sub LOADREF{
+	my ($reference) = @_;
+	my %genome;
+	open REF, "$reference";
+	my $id;
+	while (<REF>){
+		chomp;
+		if (/\>(\S+)/){
+			$id = $1;
+			$genome{seq}{$id}="";
+		}
+		elsif(/(\w+)/){
+			$genome{seq}{$id}.=$1;
+		}
+	}
+	close REF;
+	$genome{sumlen}=0;
+	foreach my $id(keys %{$genome{seq}}){
+		$genome{len}{$id}=length($genome{seq}{$id});
+		$genome{sumlen} += $genome{len}{$id};
+	}
+	return \%genome;
+}
+
+1;

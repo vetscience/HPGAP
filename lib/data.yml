@@ -1,0 +1,416 @@
+---
+args:
+  container: popgen_base_r_c1
+  env: PATH=/root/admixture_linux-1.3.0/:/root/gatk:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin/:/usr/sbin:/usr/bin:/sbin:/bin:/home/darcy/PopGen_WorkFlow/Pipeline/:/home/darcy/PopGen_WorkFlow/Pipeline/lib
+  mount:
+    -
+      dockerpath: /tmp
+      hostpath: /home/darcy/tmp
+    -
+      dockerpath: /home/darcy/PopGen_WorkFlow/
+      hostpath: /home/darcy/PopGen_WorkFlow/
+    -
+      dockerpath: /mnt/NAS/Darcy_CBriggsae/
+      hostpath: /mnt/NAS/Darcy_CBriggsae/
+  outdir: /home/darcy/PopGen_WorkFlow/Cb_Validation
+  ploidy: 1
+fqdata:
+  BW287:
+    rawdata:
+      SRR1792980:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792980_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792980_2.fastq.gz
+  ED3032:
+    rawdata:
+      SRR1792917:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792917_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792917_2.fastq.gz
+  ED3034:
+    rawdata:
+      SRR1792918:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792918_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792918_2.fastq.gz
+  ED3036:
+    rawdata:
+      SRR1792919:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792919_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792919_2.fastq.gz
+  ED3101:
+    rawdata:
+      SRR1793002:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1793002_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1793002_2.fastq.gz
+  EG4181:
+    rawdata:
+      SRR1792978:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792978_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792978_2.fastq.gz
+  GXW0023:
+    rawdata:
+      SRR1792921:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792921_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792921_2.fastq.gz
+  GXW0024:
+    rawdata:
+      SRR1792920:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792920_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792920_2.fastq.gz
+  JU1338:
+    rawdata:
+      SRR1792922:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792922_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792922_2.fastq.gz
+  JU1341:
+    rawdata:
+      SRR1792953:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792953_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792953_2.fastq.gz
+      SRR1793000:
+        Flag: SE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1793000.fastq.gz
+        fq2: NULL
+  JU1348:
+    rawdata:
+      SRR1793004:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1793004_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1793004_2.fastq.gz
+  JU1376:
+    rawdata:
+      SRR1792931:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792931_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792931_2.fastq.gz
+  JU1392:
+    rawdata:
+      SRR1792923:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792923_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792923_2.fastq.gz
+  JU1399:
+    rawdata:
+      SRR1792934:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792934_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792934_2.fastq.gz
+  JU1424:
+    rawdata:
+      SRR1792933:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792933_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792933_2.fastq.gz
+  JU1794:
+    rawdata:
+      SRR1792937:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792937_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792937_2.fastq.gz
+      SRR1792939:
+        Flag: SE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792939.fastq.gz
+        fq2: NULL
+  JU1795:
+    rawdata:
+      SRR1792942:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792942_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792942_2.fastq.gz
+  JU1799:
+    rawdata:
+      SRR1792950:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792950_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792950_2.fastq.gz
+  JU1802:
+    rawdata:
+      SRR1792947:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792947_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792947_2.fastq.gz
+  JU1829:
+    rawdata:
+      SRR1792945:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792945_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792945_2.fastq.gz
+  JU1884:
+    rawdata:
+      SRR1792996:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792996_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792996_2.fastq.gz
+  JU1907:
+    rawdata:
+      SRR1792955:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792955_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792955_2.fastq.gz
+      SRR1792958:
+        Flag: SE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792958.fastq.gz
+        fq2: NULL
+  JU1908:
+    rawdata:
+      SRR1792963:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792963_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792963_2.fastq.gz
+  JU1914:
+    rawdata:
+      SRR1792961:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792961_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792961_2.fastq.gz
+  JU516:
+    rawdata:
+      SRR1792992:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792992_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792992_2.fastq.gz
+  JU726:
+    rawdata:
+      SRR1792964:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792964_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792964_2.fastq.gz
+  NIC109:
+    rawdata:
+      SRR1792967:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792967_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792967_2.fastq.gz
+  NIC115:
+    rawdata:
+      SRR1792972:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792972_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792972_2.fastq.gz
+  NIC19:
+    rawdata:
+      SRR1793010:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1793010_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1793010_2.fastq.gz
+  NIC20:
+    rawdata:
+      SRR1793012:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1793012_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1793012_2.fastq.gz
+  NIC65:
+    rawdata:
+      SRR1792970:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792970_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792970_2.fastq.gz
+  QR24:
+    rawdata:
+      SRR1793005:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1793005_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1793005_2.fastq.gz
+  QR25:
+    rawdata:
+      SRR1793006:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1793006_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1793006_2.fastq.gz
+  QX1410:
+    rawdata:
+      SRR1792974:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792974_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792974_2.fastq.gz
+  QX1547:
+    rawdata:
+      SRR1792983:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792983_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792983_2.fastq.gz
+  QX1805:
+    rawdata:
+      SRR1792976:
+        Flag: PE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1792976_1.fastq.gz
+        fq2: /mnt/NAS/Darcy_CBriggsae/SRR1792976_2.fastq.gz
+  VX0034:
+    rawdata:
+      SRR1793007:
+        Flag: SE
+        PL: HISEQ2000
+        Phred: '33'
+        fq1: /mnt/NAS/Darcy_CBriggsae/SRR1793007.fastq.gz
+        fq2: NULL
+population:
+  BW287:
+    'presumed population': Temperate
+  ED3032:
+    'presumed population': Tropical
+  ED3034:
+    'presumed population': Tropical
+  ED3036:
+    'presumed population': Tropical
+  ED3101:
+    'presumed population': Temperate
+  EG4181:
+    'presumed population': Temperate
+  GXW0023:
+    'presumed population': Tropical
+  GXW0024:
+    'presumed population': Tropical
+  JU1338:
+    'presumed population': Tropical
+  JU1341:
+    'presumed population': Kerala
+  JU1348:
+    'presumed population': Kerala
+  JU1376:
+    'presumed population': Tropical
+  JU1392:
+    'presumed population': Tropical
+  JU1399:
+    'presumed population': Tropical
+  JU1424:
+    'presumed population': Tropical
+  JU1794:
+    'presumed population': Tropical
+  JU1795:
+    'presumed population': Tropical
+  JU1799:
+    'presumed population': Tropical
+  JU1802:
+    'presumed population': Tropical
+  JU1829:
+    'presumed population': Tropical
+  JU1884:
+    'presumed population': Tropical
+  JU1907:
+    'presumed population': Tropical
+  JU1908:
+    'presumed population': Tropical
+  JU1914:
+    'presumed population': Tropical
+  JU516:
+    'presumed population': Temperate
+  JU726:
+    'presumed population': Tropical
+  NIC109:
+    'presumed population': Tropical
+  NIC115:
+    'presumed population': Tropical
+  NIC19:
+    'presumed population': Taiwan
+  NIC20:
+    'presumed population': Taiwan
+  NIC65:
+    'presumed population': Tropical
+  QR24:
+    'presumed population': Quebec
+  QR25:
+    'presumed population': Quebec
+  QX1410:
+    'presumed population': Tropical
+  QX1547:
+    'presumed population': Temperate
+  QX1805:
+    'presumed population': Tropical
+  VX0034:
+    'presumed population': Hubei
+ref:
+  choose: c.briggsae.fa
+  db:
+    c.briggsae.fa:
+      name: c.briggsae.fa
+      path: /home/darcy/PopGen_WorkFlow/Cb_Validation/00.Indexing/c.briggsae.fa
+step1:
+  variant_filtering:
+    indel: 'QD < 15.0 || FS > 200.0 || ReadPosRankSum < -20.0'
+    snp: 'QD < 15.0 || FS > 60.0 || MQ < 40.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0'
