@@ -1,115 +1,18 @@
-# HPGAP
-Helminth Population Genomic Analysis Pipeline
-
-This repo contains the implementation for `HPGAP` , along with its associated support scripts, libraries and example population genomic data.
-
-The workflow for analysis using `HPGAP` consists of five basic parts. 1) Variant calling; 2) Sample filtering; 3) Inferring genetic relationships; 4) Intra-population analysis; 5) identifying loci under nature selection. 
-
-## Dependencies
-
-* miniconda
-* udocker
-
-## Installation
-
-To install the pipeline, just need to clone the git directory and install udocker and miniconda with the following instructions.
-
-~~~bash
-git clone https://github.com/vetscience/HPGAP.git
-
-wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
-echo -e "\nyes\n\nyes\n" | bash Miniconda3-latest-Linux-x86_64.sh
-export PATH=~/miniconda3/bin:$PATH
-conda update -y -n base conda
-conda config --add channels defaults
-conda config --add channels conda-forge
-conda config --add channels bioconda
-
-echo "########################"
-echo "# Installing udocker ..."
-conda install -y -p ~/miniconda3 udocker==1.1.1
-rm -f udocker.py
-wget https://raw.githubusercontent.com/indigo-dc/udocker/7f6975c19c63c3d65ec6256c7cf5b2369d5c115d/udocker.py
-sed 's/proot_killonexit = True/proot_killonexit = False/1' udocker.py > ~/miniconda3/bin/udocker.py
-rm -f udocker.py
-chmod uog+x ~/miniconda3/bin/udocker.py
-sed 's/#!\/bin\/bash/#!\/bin\/bash\nexport CONDA_PREFIX=~\/miniconda3/1' ~/miniconda3/bin/udocker > udocker
-chmod uog+x udocker
-mv udocker ~/miniconda3/bin
-wget https://github.com/proot-me/proot-static-build/raw/master/static/proot-x86_64 -P ~/miniconda3/bin
-wget https://github.com/proot-me/proot-static-build/raw/master/static/proot-x86 -P ~/miniconda3/bin
-chmod uog+x ~/miniconda3/bin/proot*
-
-echo "###########################"
-echo "# Installing containers ..."
-udocker pull walkbay3000/hpgap:latest
-udocker create --name=HPGAP_c1 walkbay3000/hpgap:latest
-~~~
-
-
-
-## Run the pipeline
-
-To run the pipeline, simply follow this command:
-
-~~~bash
-udocker run -v <the path to your git cloned directory>:<the path to your git cloned directory> -v <the path to your working directory>:<the path to your working directory> --env="PATH=<the path to your git cloned directory>" HPGAP_c1 /bin/bash -c 'HPGAP.pl --config <the path to your configuration file>'
-~~~
-
-
-
-## Usage
-
-~~~
-Usage
-	HPGAP.pl --samplelist sample.list --reference reference.fa [-options]
-
-	--run <String> use this option choose one of steps below (the option should not be used with --step at the same time)
-		step0_indexing
-		step1_read_filtering
-		step1_read_mapping
-		step1_recalibration
-		step1_variant_calling
-		step1_combine_calling
-		step1_variant_filtering
-		step2_relatedness
-		step3_phylogeny
-		step3_admixture
-		step5_homozygosity
-		step5_roh
-		step5_ld
-		step5_slidingwindow
-		step5_sfs
-
-	--config path to the .yml config file
-	--step <String>	specified steps , separated by commas (e.g., "0:A;1:A,B,C,E,F,G").
-		0:indexing;
-		1:read_filtering,read_mapping,recalibration,variant_calling,combine_calling,variant_filtering;
-		3:phylogeny,admixture;
-		5:homozygosity,roh,ld,slidingwindow,sfs
-	--skipsh use this to skip running bash inside the pipeline
-	--help
-
-Note
-	1. No symbolic link to the files outside the mounted volume, which means all the data files themselves should be located within the mounted volume.
-	2. For each pair of fastq data, the second colomn (library or flowcell code) should always be unique.
-	3. All the paths need to be absolute path
-~~~
-
-
-
-## Setting the configuration file
-
-~~~yaml
 ---
 args:
   container: HPGAP_c1
-  env: PATH=/root/admixture_linux-1.3.0/:/root/gatk:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin/:/usr/sbin:/usr/bin:/sbin:/bin:/sbin:/bin:<your path to the pipeline>:<your path to the pipeline>/lib:<your path to the pipeline>/Tools
+  env: PATH=/root/admixture_linux-1.3.0/:/root/gatk:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin/:/usr/sbin:/usr/bin:/sbin:/bin:/sbin:/bin:/home/darcy/PopGen_WorkFlow/Pipeline/:/home/darcy/PopGen_WorkFlow/Pipeline/lib:/home/darcy/PopGen_WorkFlow/Pipeline/Tools
   mount:
     -
-      dockerpath: <your working directory in the container>
-      hostpath: <your working directory>
-  outdir: <your working directory>
+      dockerpath: /tmp
+      hostpath: /home/darcy/tmp
+    -
+      dockerpath: /mnt/NAS/Clonorchis_sinensis/
+      hostpath: /mnt/NAS/Clonorchis_sinensis/
+    -
+      dockerpath: /home/darcy/PopGen_WorkFlow/
+      hostpath: /home/darcy/PopGen_WorkFlow/
+  outdir: /home/darcy/PopGen_WorkFlow/Example/
   ploidy: '2'
 fqdata:
   1-1:
@@ -241,6 +144,7 @@ step1:
     scaffold_length_cutoff: '0'
     scaffold_number_limit: '2'
     snp: 'QD < 2.0 || FS > 60.0 || MQ < 40.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0'
+    vcf: /home/darcy/PopGen_WorkFlow/Example//01.QualityControl/Combined/PASS.SNP.DP.vcf.gz
 step3:
   admixture: ~
 step4:
@@ -254,5 +158,3 @@ step4:
     scaffold_number_limit: '10000'
     snpeff_species: Clonorchis_sinensis_henan
     windowsize: '5000'
-~~~
-

@@ -1048,7 +1048,7 @@ sub PCA{
 #---------------------------------------04.InterPopulation------------------------------------------
 #################################
 #			   					#
-#      Step5 Divergence         #
+#      step4 Divergence         #
 #			   					#
 #################################
 sub DIVERGENCE{
@@ -1124,151 +1124,10 @@ sub DIVERGENCE{
 	`sh $shpath/Divergence.sh 1>$shpath/Divergence.sh.o 2>$shpath/Divergence.sh.e` unless ($skipsh ==1);
 }	
 #---------------------------------------05.IntraPopulation------------------------------------------
-#################################
-#			   #
-#   	Step5_Diversity    		#
-#			   #
-#################################
-sub SLIDINGWINDOW{
-	my ($yml_file,$skipsh) = @_;
-	my $yaml = YAML::Tiny->read( $yml_file );
-	my %cfg = %{$yaml->[0]};
-	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/Slidingwindow/";
-	my $shpath = "$cfg{args}{outdir}/NewShell/05.IntraPopulation/Slidingwindow/";
-
-	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
-	my $gzvcf = $cfg{step1}{variant_filtering}{vcf};
-
-	my $localgzvcf = "$outpath/di_PASS.SNP.DP.vcf.gz";
-
-	$cfg{step5}{diversity}{windowsize} = 5000 unless (defined $cfg{step5}{diversity}{windowsize});
-	$cfg{step5}{diversity}{scaffold_number_limit} = 10000 unless (defined $cfg{step5}{diversity}{scaffold_number_limit});
-	$cfg{step5}{diversity}{scaffold_length_cutoff} = 5000 unless (defined $cfg{step5}{diversity}{scaffold_length_cutoff});
-	my $window_size = $cfg{step5}{diversity}{windowsize};
-	my $scaffold_number_limit = $cfg{step5}{diversity}{scaffold_number_limit};
-	my $scaffold_length_cutoff = $cfg{step5}{diversity}{scaffold_length_cutoff};
-
-	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
-	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
-
-	### circle all the populations
-	my %pop;
-	foreach my $sample (keys %{$cfg{population}}){
-		unless (exists $pop{$cfg{population}{$sample}{'presumed population'}}{line}){
-			$pop{$cfg{population}{$sample}{'presumed population'}}{count} = 0;
-			$pop{$cfg{population}{$sample}{'presumed population'}}{line} = "";
-		}
-		$pop{$cfg{population}{$sample}{'presumed population'}}{count}++;
-		$pop{$cfg{population}{$sample}{'presumed population'}}{line} .= "$sample\n";
-	}
-
-	`cp -f $Bin/lib/Diversity.R $shpath/Diversity.R`;
-	open SH, ">$shpath/Diversity.sh";
-	print SH "cd $outpath\n";
-	
-	# prepare for a psudo-diploid vcf file for haploid 
-	if ($cfg{args}{ploidy} == 1){
-	print SH <<EOF;
-zcat $gzvcf|java -jar /root/jvarkit/dist/vcffilterjdk.jar -e 'return new VariantContextBuilder(variant).genotypes(variant.getGenotypes().stream().map(G->!G.isCalled()?GenotypeBuilder.createMissing(G.getSampleName(),2):G).map(G->G.isCalled() && G.getPloidy()==1?new GenotypeBuilder(G).alleles(Arrays.asList(G.getAllele(0),G.getAllele(0))).make():G).collect(Collectors.toList())).attribute("AC",variant.getGenotypes().stream().mapToInt(G->G.isCalled() && G.getPloidy()==1 && !G.getAllele(0).isReference()?2:G.getAlleles().size()).sum()).attribute("AN",variant.getGenotypes().stream().mapToInt(G->G.isCalled() && G.getPloidy()==1 ?2:G.getAlleles().size()).sum()).make();'|bgzip -c >$localgzvcf
-EOF
-}else{
-	print SH "cp -f $gzvcf $localgzvcf\n";
-}	
-	#generate a scaffold size list
-	open SL, ">$outpath/chr.size.list";
-	foreach my $id(sort { $genome->{len}{$b} <=> $genome->{len}{$a} } keys %{$genome->{len}}){
-		print SL "$id\t$genome->{len}{$id}\n";
-	}close SL;
-
-	open CL1, ">$shpath/diversity.cmd1.list";
-	open CL2, ">$shpath/diversity.cmd2.list";
-	open CL3, ">$shpath/diversity.cmd3.list";
-	open CL4, ">$shpath/diversity.cmd4.list";
-	open CL5, ">$shpath/diversity.cmd5.list";
-
-	#loop for each available population
-	foreach my $pop_name (keys %pop){
-		next unless ($pop{$pop_name}{count} > 6);
-		open OT, ">$outpath/$pop_name.list";
-		print OT $pop{$pop_name}{line};
-		close OT;
-		# generate a vcf file for each population
-		print CL1 "vcftools --gzvcf $localgzvcf --keep $outpath/$pop_name.list --recode --stdout |bgzip -c >$outpath/$pop_name.SNP.vcf.gz\n";
-		print CL1 "vcftools --gzvcf $outpath/snpEff.nonsyn.vcf.gz --keep $outpath/$pop_name.list --recode --stdout |bgzip -c >$outpath/$pop_name.snpEff.nonsyn.vcf.gz\n";
-		print CL1 "vcftools --gzvcf $outpath/snpEff.syn.vcf.gz --keep $outpath/$pop_name.list --recode --stdout |bgzip -c >$outpath/$pop_name.snpEff.syn.vcf.gz\n";
-		
-		# calculate syn and nonsyn diversity values in each sliding window
-		print CL2 "vcftools --gzvcf $outpath/$pop_name.snpEff.nonsyn.vcf.gz --window-pi $window_size --stdout >$outpath/$pop_name.snpEff.nonsyn.pi.list\n";
-		print CL2 "vcftools --gzvcf $outpath/$pop_name.snpEff.syn.vcf.gz --window-pi $window_size --stdout >$outpath/$pop_name.snpEff.syn.pi.list\n";
-		print CL3 "PiSynNonSyn.pl $outpath/$pop_name.snpEff.nonsyn.pi.list $outpath/$pop_name.snpEff.nonsyn.pi.list SynSitesBin.list >$outpath/$pop_name.PiSynNonSyn.list\n";
-		
-		# plot diversity
-		my $i = 1;
-		foreach my $id(sort { $genome->{len}{$b} <=> $genome->{len}{$a} } keys %{$genome->{len}}){
-			if (($genome->{len}{$id}>=$scaffold_length_cutoff)&&($i<=$scaffold_number_limit)){
-				
-				my $len=$genome->{len}{$id};
-				my $bigwin=11*$window_size;
-				#print CL2 "vcftools --gzvcf $outpath/$pop_name.SNP.vcf.gz --chr $id --ldhat-geno --out $outpath/$id.$pop_name.ldhat.input\n";
-				print CL4 "python /root/diploSHIC/diploSHIC.py fvecVcf diploid $outpath/$pop_name.SNP.vcf.gz $id $len $outpath/$id.$pop_name.SNP.fvec --winSize $bigwin --statFileName $outpath/$id.$pop_name.stat.result 1>$shpath/$id.$pop_name.stat.result.o 2>$shpath/$id.$pop_name.stat.result.e\n";
-				
-				my @p;
-				push @p, $outpath; 
-				push @p, "$id.$pop_name.Pi.list";
-				push @p, "$id.$pop_name.SNPdensity.list";
-				push @p, "$id.$pop_name.TajimaD.list";
-				push @p, "$id.$pop_name.diversity.png";
-				push @p, "$id.$pop_name.TajimaD.png";
-				push @p, $pop{$pop_name}{count};
-				push @p, $window_size;
-				push @p, $id;
-				my $p = join (' ',@p);
-				
-				open IDSH, ">$shpath/$id.$pop_name.diversity.sh";
-				print IDSH "grep -w \"$id\" $outpath/$pop_name.Pi.list >$outpath/$id.$pop_name.Pi.list\n";
-				print IDSH "grep -w \"$id\" $outpath/$pop_name.SNPdensity.list >$outpath/$id.$pop_name.SNPdensity.list\n";
-				print IDSH "grep -w \"$id\" $outpath/$pop_name.TajimaD.list >$outpath/$id.$pop_name.TajimaD.list\n";
-				print IDSH "Rscript --vanilla $shpath/Diversity.R $p\n";
-				close IDSH;
-				print CL5 "sh $shpath/$id.$pop_name.diversity.sh 1>$shpath/$id.$pop_name.diversity.sh.o 2>$shpath/$id.$pop_name.diversity.sh.e\n";
-
-				$i++;
-			}
-		}
-	}
-	close CL1;
-	close CL2;
-	close CL3;
-	close CL4;
-	close CL5;
-	###
-	### annotate  vcf file
-	print SH "snpEff $cfg{step5}{diversity}{snpeff_species} $localgzvcf |bgzip -c >$outpath/snpEff.vcf.gz\n";
-	### extract nonsyn snvs
-	print SH "zcat $outpath/snpEff.vcf.gz |SnpSift filter \"(ANN[*].BIOTYPE has 'protein_coding') & ((ANN[*].EFFECT has 'missense_variant') | (ANN[*].EFFECT = 'start_lost')| (ANN[*].EFFECT = 'stop_gained')| (ANN[*].EFFECT = 'stop_lost'))\" |perl -ne 'if(/#/){print;}elsif(/ANN/){s/ANN\\S+/./g;print;}else{print;}'|bgzip -c >$outpath/snpEff.nonsyn.vcf.gz\n";
-	### extract syn snvs
-	print SH "zcat $outpath/snpEff.vcf.gz |SnpSift filter \"(ANN[*].BIOTYPE has 'protein_coding') & ((ANN[*].EFFECT = 'synonymous_variant') | (ANN[*].EFFECT = 'stop_retained_variant') | (ANN[*].EFFECT = 'start_retained'))\" |perl -ne 'if(/#/){print;}elsif(/ANN/){s/ANN\\S+/./g;print;}else{print;}'|bgzip -c >$outpath/snpEff.syn.vcf.gz\n";
-	print SH "Number_syn_nonsyn_sites.pl $cfg{ref}{db}{$cfg{ref}{choose}}{path} $cfg{step5}{diversity}{gff} test >$outpath/nonsyn.sites.list\n";
-	print SH "SynSitesBin.pl chr.size.list $outpath/nonsyn.sites.list |grep -v NULL|sort -k1,1 -k2,2n >$outpath/SynSitesBin.list\n";
-	print SH "parallel -j 20 < $shpath/diversity.cmd1.list\n";
-	print SH "parallel -j 20 < $shpath/diversity.cmd2.list\n";
-	print SH "parallel -j 20 < $shpath/diversity.cmd3.list\n";
-	print SH "parallel -j 20 < $shpath/diversity.cmd4.list\n";
-	print SH "#parallel -j 20 < $shpath/diversity.cmd5.list\n";
-	close SH;
-
-	
-	`sh $shpath/Diversity.sh 1>$shpath/Diversity.sh.o 2>$shpath/Diversity.sh.e` unless ($skipsh ==1);
-
-	# create this yaml object
-	$yaml = YAML::Tiny->new( \%cfg );
-	# Save both documents to a file
-	$yaml->write( $yml_file );
-}
 
 #################################
 #			   #
-#   	Step5_Homozygosity   	#
+#   	step4_Homozygosity   	#
 #			   #
 #################################
 sub HOMOZYGOSITY{
@@ -1310,7 +1169,7 @@ sub HOMOZYGOSITY{
 }
 #################################
 #			   #
-#   	Step5_ROH			   	#
+#   	step4_ROH			   	#
 #			   #
 #################################
 sub ROH{
@@ -1326,12 +1185,12 @@ sub ROH{
 	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
 	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
 
-	$cfg{step5}{ROH}{windowsize} = 100 unless (defined $cfg{step5}{ROH}{windowsize});
-	$cfg{step5}{ROH}{scaffold_number_limit} = 95 unless (defined $cfg{step5}{ROH}{scaffold_number_limit});
-	$cfg{step5}{ROH}{scaffold_length_cutoff} = 1000000 unless (defined $cfg{step5}{ROH}{scaffold_length_cutoff});
-	my $window_size = $cfg{step5}{ROH}{windowsize};
-	my $scaffold_number_limit = $cfg{step5}{ROH}{scaffold_number_limit};
-	my $scaffold_length_cutoff = $cfg{step5}{ROH}{scaffold_length_cutoff};
+	$cfg{step4}{ROH}{windowsize} = 100 unless (defined $cfg{step4}{ROH}{windowsize});
+	$cfg{step4}{ROH}{scaffold_number_limit} = 95 unless (defined $cfg{step4}{ROH}{scaffold_number_limit});
+	$cfg{step4}{ROH}{scaffold_length_cutoff} = 1000000 unless (defined $cfg{step4}{ROH}{scaffold_length_cutoff});
+	my $window_size = $cfg{step4}{ROH}{windowsize};
+	my $scaffold_number_limit = $cfg{step4}{ROH}{scaffold_number_limit};
+	my $scaffold_length_cutoff = $cfg{step4}{ROH}{scaffold_length_cutoff};
 
 	### load reference and map scaffold to number list 
 	my $i=1;my $j=0;
@@ -1339,13 +1198,13 @@ sub ROH{
 	foreach my $id(sort { $genome->{len}{$b} <=> $genome->{len}{$a} } keys %{$genome->{len}}){
 		print OT "$id\t$i\n";
 		$i++;
-		if (($genome->{len}{$id} >= $cfg{step5}{ROH}{scaffold_length_cutoff})&&($j < $cfg{step5}{ROH}{scaffold_number_limit})){
+		if (($genome->{len}{$id} >= $cfg{step4}{ROH}{scaffold_length_cutoff})&&($j < $cfg{step4}{ROH}{scaffold_number_limit})){
 			$j++;
 		}
 	}
 	close OT;
 
-	$cfg{step5}{ROH}{scaffold_number_limit} = $j;
+	$cfg{step4}{ROH}{scaffold_number_limit} = $j;
 
 	my %pop;
 	foreach my $sample (keys %{$cfg{population}}){
@@ -1374,7 +1233,7 @@ sub ROH{
 }
 #################################
 #			   #
-#   	Step5_LD			   	#
+#   	step4_LD			   	#
 #
 #################################
 sub LD{
@@ -1392,10 +1251,10 @@ sub LD{
 		$gzvcf = "$outpath/diploid.high_confidence.vcf.gz";
 	}
 
-	$cfg{step5}{ld}{scaffold_number_limit} = 5000 unless (defined $cfg{step5}{ld}{scaffold_number_limit});
-	$cfg{step5}{ld}{scaffold_length_cutoff} = 5000 unless (defined $cfg{step5}{ld}{scaffold_length_cutoff});
-	my $scaffold_number_limit = $cfg{step5}{ld}{scaffold_number_limit};
-	my $scaffold_length_cutoff = $cfg{step5}{ld}{scaffold_length_cutoff};
+	$cfg{step4}{ld}{scaffold_number_limit} = 5000 unless (defined $cfg{step4}{ld}{scaffold_number_limit});
+	$cfg{step4}{ld}{scaffold_length_cutoff} = 5000 unless (defined $cfg{step4}{ld}{scaffold_length_cutoff});
+	my $scaffold_number_limit = $cfg{step4}{ld}{scaffold_number_limit};
+	my $scaffold_length_cutoff = $cfg{step4}{ld}{scaffold_length_cutoff};
 
 	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
 	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
@@ -1445,9 +1304,10 @@ EOF
 				print IDSH "rm -rf $pop_name.$id.SNP.noSingle.beagl*\n";
 				print IDSH "beagle gt=$pop_name.$id.SNP.noSingle.vcf.gz out=$pop_name.$id.SNP.noSingle.beagle\n";
 #				print IDSH "vcftools --gzvcf $pop_name.$id.SNP.noSingle.beagle.vcf.gz --hap-r2 --ld-window-bp 1000000 --stdout |grep -v nan > $pop_name.$id.LD_window_1M.list\n";
-				print IDSH "vcftools --gzvcf $pop_name.$id.SNP.noSingle.beagle.vcf.gz --geno-r2 --ld-window-bp 1000000 --stdout |grep -v nan > $pop_name.$id.GLD_window_1M.list\n";
+				print IDSH "#vcftools --gzvcf $pop_name.$id.SNP.noSingle.beagle.vcf.gz --geno-r2 --ld-window-bp 1000000 --stdout |grep -v nan | perl -ne '\@a=split /\\t+/;if (/CHR/){print;}elsif(((\$a[2]-\$a[1])>5000)&&(\$i!= 100)){\$i++;}elsif((\$a[2]-\$a[1])<=5000){print;}elsif(((\$a[2]-\$a[1])>5000 )&& (\$i ==100)){print;\$i=0;}'> $pop_name.$id.GLD_window_1M.list\n";
+				print IDSH "window_LD.pl $pop_name.$id.GLD_window_1M.list $cfg{step4}{slidingwindow}{windowsize} ",$genome->{len}{$id}," > $pop_name.$id.GLD_window.stats\n";
 #				print IDSH "cat $pop_name.$id.LD_window_1M.list",'|sed 1,1d | awk -F " " \'function abs(v) {return v < 0 ? -v : v}BEGIN{OFS="\t"}{print abs($3-$2),$5}\''," >$pop_name.$id.LD_window_1M.summary\n";
-				print IDSH "cat $pop_name.$id.GLD_window_1M.list",'|sed 1,1d | awk -F " " \'function abs(v) {return v < 0 ? -v : v}BEGIN{OFS="\t"}{print abs($3-$2),$5}\''," >$pop_name.$id.GLD_window_1M.summary\n";
+				print IDSH "#cat $pop_name.$id.GLD_window_1M.list",'|sed 1,1d | awk -F " " \'function abs(v) {return v < 0 ? -v : v}BEGIN{OFS="\t"}{print abs($3-$2),$5}\''," >$pop_name.$id.GLD_window_1M.summary\n";
 				close IDSH;
 
 				print PCL "sh $shpath/$pop_name.$id.LD.sh 1>$shpath/$pop_name.$id.LD.sh.o 2>$shpath/$pop_name.$id.LD.sh.e\n";
@@ -1488,7 +1348,260 @@ EOF
 
 }
 
-#---------------------------------------06.DemographicHistory------------------------------------------
+#################################
+#			   #
+#   	step4_SlidingWindow 	#
+#			   #
+#################################
+sub SLIDINGWINDOW{
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/Slidingwindow/";
+	my $shpath = "$cfg{args}{outdir}/NewShell/05.IntraPopulation/Slidingwindow/";
+
+	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
+	my $gzvcf = $cfg{step1}{variant_filtering}{vcf};
+
+	$cfg{step4}{slidingwindow}{windowsize} = 5000 unless (defined $cfg{step4}{slidingwindow}{windowsize});
+	$cfg{step4}{slidingwindow}{scaffold_number_limit} = 10000 unless (defined $cfg{step4}{slidingwindow}{scaffold_number_limit});
+	$cfg{step4}{slidingwindow}{scaffold_length_cutoff} = 5000 unless (defined $cfg{step4}{slidingwindow}{scaffold_length_cutoff});
+	my $window_size = $cfg{step4}{slidingwindow}{windowsize};
+	my $scaffold_number_limit = $cfg{step4}{slidingwindow}{scaffold_number_limit};
+	my $scaffold_length_cutoff = $cfg{step4}{slidingwindow}{scaffold_length_cutoff};
+
+	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
+	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
+
+	### circle all the populations
+	my %pop;
+	foreach my $sample (keys %{$cfg{population}}){
+		unless (exists $pop{$cfg{population}{$sample}{'presumed population'}}{line}){
+			$pop{$cfg{population}{$sample}{'presumed population'}}{count} = 0;
+			$pop{$cfg{population}{$sample}{'presumed population'}}{line} = "";
+		}
+		$pop{$cfg{population}{$sample}{'presumed population'}}{count}++;
+		$pop{$cfg{population}{$sample}{'presumed population'}}{line} .= "$sample\n";
+	}
+
+	`cp -f $Bin/lib/Diversity.R $shpath/Diversity.R`;
+	open SH, ">$shpath/Slidingwindow.sh";
+	print SH "cd $outpath\n";
+	
+	my $localgzvcf = $gzvcf;
+	# prepare for a psudo-diploid vcf file for haploid 
+#	my $localgzvcf = "$outpath/di_PASS.SNP.DP.vcf.gz";
+#	if ($cfg{args}{ploidy} == 1){
+#	print SH <<EOF;
+#zcat $gzvcf|java -jar /root/jvarkit/dist/vcffilterjdk.jar -e 'return new VariantContextBuilder(variant).genotypes(variant.getGenotypes().stream().map(G->!G.isCalled()?GenotypeBuilder.createMissing(G.getSampleName(),2):G).map(G->G.isCalled() && G.getPloidy()==1?new GenotypeBuilder(G).alleles(Arrays.asList(G.getAllele(0),G.getAllele(0))).make():G).collect(Collectors.toList())).attribute("AC",variant.getGenotypes().stream().mapToInt(G->G.isCalled() && G.getPloidy()==1 && !G.getAllele(0).isReference()?2:G.getAlleles().size()).sum()).attribute("AN",variant.getGenotypes().stream().mapToInt(G->G.isCalled() && G.getPloidy()==1 ?2:G.getAlleles().size()).sum()).make();'|bgzip -c >$localgzvcf
+#EOF
+#}else{
+#	print SH "cp -f $gzvcf $localgzvcf\n";
+#}	
+	
+	#generate a scaffold size list
+	open SL, ">$outpath/chr.size.list";
+	foreach my $id(sort { $genome->{len}{$b} <=> $genome->{len}{$a} } keys %{$genome->{len}}){
+		print SL "$id\t$genome->{len}{$id}\n";
+	}close SL;
+
+	`grep CDS $cfg{step4}{slidingwindow}{gff} >$outpath/CDS.gff`;
+	#generate Bed files
+	my $i = 1;
+	foreach my $id(sort { $genome->{len}{$b} <=> $genome->{len}{$a} } keys %{$genome->{len}}){
+		if (($genome->{len}{$id}>=$scaffold_length_cutoff)&&($i<=$scaffold_number_limit)){
+			open BED, ">$outpath/$id.bed";
+			for (my $j = 0;($j + $window_size) <= $genome->{len}{$id};$j+=$window_size ){
+				my $start = $j; my $end = $j + $window_size; 
+				print BED "$id\t$start\t$end\n";
+			}
+			close BED;
+			`bedtools intersect -a $outpath/$id.bed -b $outpath/CDS.gff -wo >$outpath/$id.intersected.bed`;
+		}
+	}
+
+	open CL1, ">$shpath/Slidingwindow.cmd1.list";
+	open CL2, ">$shpath/Slidingwindow.cmd2.list";
+	open CL3, ">$shpath/Slidingwindow.cmd3.list";
+	open CL4, ">$shpath/Slidingwindow.cmd4.list";
+	open CL5, ">$shpath/Slidingwindow.cmd5.list";
+
+	#loop for each available population
+	foreach my $pop_name (keys %pop){
+		next unless ($pop{$pop_name}{count} > 6);
+		open OT, ">$outpath/$pop_name.list";
+		print OT $pop{$pop_name}{line};
+		close OT;
+		# generate a vcf file for each population
+		print CL1 "vcftools --gzvcf $localgzvcf --keep $outpath/$pop_name.list --recode --stdout |bgzip -c >$outpath/$pop_name.SNP.vcf.gz\n";
+		print CL1 "vcftools --gzvcf $outpath/snpEff.nonsyn.vcf.gz --keep $outpath/$pop_name.list --recode --stdout |bgzip -c >$outpath/$pop_name.snpEff.nonsyn.vcf.gz\n";
+		print CL1 "vcftools --gzvcf $outpath/snpEff.syn.vcf.gz --keep $outpath/$pop_name.list --recode --stdout |bgzip -c >$outpath/$pop_name.snpEff.syn.vcf.gz\n";
+		
+		# calculate syn and nonsyn diversity values in each sliding window
+		print CL2 "vcftools --gzvcf $outpath/$pop_name.snpEff.nonsyn.vcf.gz --window-pi $window_size --stdout >$outpath/$pop_name.snpEff.nonsyn.pi.list\n";
+		print CL2 "vcftools --gzvcf $outpath/$pop_name.snpEff.syn.vcf.gz --window-pi $window_size --stdout >$outpath/$pop_name.snpEff.syn.pi.list\n";
+		print CL3 "PiSynNonSyn.pl $outpath/$pop_name.snpEff.nonsyn.pi.list $outpath/$pop_name.snpEff.nonsyn.pi.list SynSitesBin.list >$outpath/$pop_name.PiSynNonSyn.list\n";
+		
+		# plot diversity
+		my $i = 1;
+		foreach my $id(sort { $genome->{len}{$b} <=> $genome->{len}{$a} } keys %{$genome->{len}}){
+			if (($genome->{len}{$id}>=$scaffold_length_cutoff)&&($i<=$scaffold_number_limit)){
+				
+				my $len=$genome->{len}{$id};
+				my $bigwin=11*$window_size;
+				# get the diploid slidingwindow stats
+				print CL4 "python /root/diploSHIC/diploSHIC.py fvecVcf diploid $outpath/$pop_name.SNP.vcf.gz $id $len $outpath/$id.$pop_name.SNP.fvec --winSize $bigwin --statFileName $outpath/$id.$pop_name.stat.result 1>$shpath/$id.$pop_name.stat.result.o 2>$shpath/$id.$pop_name.stat.result.e\n" if ($cfg{args}{ploidy} == 2);
+				# get the haploid slidingwindow stats
+				print CL4 "python /root/diploSHIC/diploSHIC.py fvecVcf haploid $outpath/$pop_name.SNP.vcf.gz $id $len $outpath/$id.$pop_name.SNP.fvec --winSize $bigwin --ancFileName $cfg{ref}{db}{$cfg{ref}{choose}}{path} --statFileName $outpath/$id.$pop_name.stat.result 1>$shpath/$id.$pop_name.stat.result.o 2>$shpath/$id.$pop_name.stat.result.e\n" if ($cfg{args}{ploidy} == 1);
+
+				# calculate GC content, generate the table
+				open GC, ">$outpath/$id.$pop_name.GCstat.result";
+				for (my $j = 0;($j + $window_size) <= $genome->{len}{$id};$j+=$window_size ){
+					my $GCcount = uc(substr($genome->{seq}{$id},$j,$window_size)) =~ tr/GC//;
+					my $start = $j + 1; my $end = $j + $window_size; my $GCcontent = $GCcount/$window_size;
+					print GC "$id\t$start\t$end\t$GCcontent\n";
+				}
+				close GC;
+
+				my @p;
+				push @p, $outpath; 
+				push @p, "$id.$pop_name.Pi.list";
+				push @p, "$id.$pop_name.SNPdensity.list";
+				push @p, "$id.$pop_name.TajimaD.list";
+				push @p, "$id.$pop_name.diversity.png";
+				push @p, "$id.$pop_name.TajimaD.png";
+				push @p, $pop{$pop_name}{count};
+				push @p, $window_size;
+				push @p, $id;
+				my $p = join (' ',@p);
+				
+				open IDSH, ">$shpath/$id.$pop_name.Slidingwindow.sh";
+				print IDSH "grep -w \"$id\" $outpath/$pop_name.Pi.list >$outpath/$id.$pop_name.Pi.list\n";
+				print IDSH "grep -w \"$id\" $outpath/$pop_name.SNPdensity.list >$outpath/$id.$pop_name.SNPdensity.list\n";
+				print IDSH "grep -w \"$id\" $outpath/$pop_name.TajimaD.list >$outpath/$id.$pop_name.TajimaD.list\n";
+				print IDSH "Rscript --vanilla $shpath/Diversity.R $p\n";
+				close IDSH;
+				print CL5 "sh $shpath/$id.$pop_name.Slidingwindow.sh 1>$shpath/$id.$pop_name.Slidingwindow.sh.o 2>$shpath/$id.$pop_name.Slidingwindow.sh.e\n";
+
+				$i++;
+			}
+		}
+	}
+	close CL1;
+	close CL2;
+	close CL3;
+	close CL4;
+	close CL5;
+	###
+	### annotate  vcf file
+	print SH "snpEff $cfg{step4}{slidingwindow}{snpeff_species} $localgzvcf |bgzip -c >$outpath/snpEff.vcf.gz\n";
+	### extract nonsyn snvs
+	print SH "zcat $outpath/snpEff.vcf.gz |SnpSift filter \"(ANN[*].BIOTYPE has 'protein_coding') & ((ANN[*].EFFECT has 'missense_variant') | (ANN[*].EFFECT = 'start_lost')| (ANN[*].EFFECT = 'stop_gained')| (ANN[*].EFFECT = 'stop_lost'))\" |perl -ne 'if(/#/){print;}elsif(/ANN/){s/ANN\\S+/./g;print;}else{print;}'|bgzip -c >$outpath/snpEff.nonsyn.vcf.gz\n";
+	### extract syn snvs
+	print SH "zcat $outpath/snpEff.vcf.gz |SnpSift filter \"(ANN[*].BIOTYPE has 'protein_coding') & ((ANN[*].EFFECT = 'synonymous_variant') | (ANN[*].EFFECT = 'stop_retained_variant') | (ANN[*].EFFECT = 'start_retained'))\" |perl -ne 'if(/#/){print;}elsif(/ANN/){s/ANN\\S+/./g;print;}else{print;}'|bgzip -c >$outpath/snpEff.syn.vcf.gz\n";
+	print SH "Number_syn_nonsyn_sites.pl $cfg{ref}{db}{$cfg{ref}{choose}}{path} $cfg{step4}{slidingwindow}{gff} test >$outpath/nonsyn.sites.list\n";
+	print SH "SynSitesBin.pl chr.size.list $outpath/nonsyn.sites.list |grep -v NULL|sort -k1,1 -k2,2n >$outpath/SynSitesBin.list\n";
+	print SH "parallel -j 20 < $shpath/Slidingwindow.cmd1.list\n";
+	print SH "parallel -j 20 < $shpath/Slidingwindow.cmd2.list\n";
+	print SH "parallel -j 20 < $shpath/Slidingwindow.cmd3.list\n";
+	print SH "parallel -j 20 < $shpath/Slidingwindow.cmd4.list\n";
+	print SH "#parallel -j 20 < $shpath/Slidingwindow.cmd5.list\n";
+	close SH;
+
+	`sh $shpath/Slidingwindow.sh 1>$shpath/Slidingwindow.sh.o 2>$shpath/Slidingwindow.sh.e` unless ($skipsh ==1);
+	
+	foreach my $pop_name (keys %pop){
+		open ALLSTAT, ">$outpath/$pop_name.allstat.txt";
+		next unless ($pop{$pop_name}{count} > 6);
+		my $i = 1;
+		foreach my $id(sort { $genome->{len}{$b} <=> $genome->{len}{$a} } keys %{$genome->{len}}){
+			if (($genome->{len}{$id}>=$scaffold_length_cutoff)&&($i<=$scaffold_number_limit)){
+				#$outpath/$id.$pop_name.stat.result
+				#$outpath/../LD/$pop_name.$id.GLD_window.stats
+				#$outpath/$id.$pop_name.GCstat.result
+				open IDALLSTAT, ">$outpath/$id.$pop_name.allstat.txt";
+				my %stats;
+				open STAT, "$outpath/$id.$pop_name.stat.result";
+				while(<STAT>){
+					next if (/chrom/);
+					chomp;
+					my @a = split /\s+/;
+					$stats{$a[1]}{diversity}="$a[3]\t$a[4]\t$a[5]";
+					#print "$a[0]\t$a[1]\t$a[2]\t$stats{$a[1]}{diversity}\n";
+				}
+				close STAT;
+
+				open STAT, "$outpath/$id.intersected.bed";
+				while(<STAT>){
+					next if (/chrom/);
+					chomp;
+					my @a = split /\s+/;
+					my $start = $a[1]+1;
+					my $p = $a[-1]/$window_size;
+					if (exists $stats{$start}{p_coding}){
+						$stats{$start}{p_coding}+= $p; 
+					}else{
+						$stats{$start}{p_coding}=$p;
+					}
+					#print "$a[0]\t$a[1]\t$a[2]\t$stats{$a[1]}{diversity}\n";
+				}
+				close STAT;
+
+				open STAT, "$outpath/../LD/$pop_name.$id.GLD_window.stats";
+				while(<STAT>){
+					chomp;
+					my @a = split /\t+/;
+					$stats{$a[1]}{r2}="$a[3]";
+				}
+				close STAT;
+
+				open STAT, "$outpath/$id.$pop_name.GCstat.result";
+				while(<STAT>){
+					chomp;
+					my @a = split /\s+/;
+					$stats{$a[1]}{r2} = "nan" unless (exists $stats{$a[1]}{r2});
+					$stats{$a[1]}{p_coding} = 0 unless (exists $stats{$a[1]}{p_coding});
+					if (exists $stats{$a[1]}{diversity}){
+						print IDALLSTAT "$a[0]\t$a[1]\t$a[2]\t$a[3]\t$stats{$a[1]}{p_coding}\t$stats{$a[1]}{diversity}\t$stats{$a[1]}{r2}\n";
+						print ALLSTAT "$a[0]\t$a[1]\t$a[2]\t$a[3]\t$stats{$a[1]}{p_coding}\t$stats{$a[1]}{diversity}\t$stats{$a[1]}{r2}\n";
+					}
+				}
+				close STAT;
+				close IDALLSTAT;
+			}
+			$i++;
+		}
+		close ALLSTAT;
+
+		my %stats;
+		open STAT, "$outpath/$pop_name.PiSynNonSyn.list";
+		while(<STAT>){
+			next if (/CHROM/);
+			chomp;
+			my @a = split /\t+/;
+			$stats{$a[0]}{$a[1]}{pnps}="$a[3]\t$a[4]\t$a[5]";
+		}
+		close STAT;
+
+		open ALLSTAT, ">$outpath/final.$pop_name.allstat.txt";
+		print ALLSTAT "chrom\tstart\tend\tcoding_percentage\tgc_content\tpi\ttheta\ttajimsD\tps\tpn\tpnps\n";
+		open STAT, "$outpath/$pop_name.allstat.txt";
+		while(<STAT>){
+			chomp;
+			my @a = split /\s+/;
+			$stats{$a[0]}{$a[1]}{pnps} = "nan\tnan\tnan" unless (exists $stats{$a[0]}{$a[1]}{pnps});
+			print ALLSTAT "$_\t$stats{$a[0]}{$a[1]}{pnps}\n";
+		}
+		close STAT;
+		close ALLSTAT;
+	}	
+	# create this yaml object
+	$yaml = YAML::Tiny->new( \%cfg );
+	# Save both documents to a file
+	$yaml->write( $yml_file );
+}
+
+#---------------------------------------05.DemographicHistory------------------------------------------
 sub SFS{
 	my ($yml_file,$skipsh) = @_;
 	my $yaml = YAML::Tiny->read( $yml_file );
@@ -1499,24 +1612,25 @@ sub SFS{
 
 	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
 	my $gzvcf = $cfg{step1}{variant_filtering}{vcf};
-	my $localgzvcf = "$slidingwindowpath/di_PASS.SNP.DP.vcf.gz";
+	my $localgzvcf = $gzvcf;
 	#$localgzvcf = $gzvcf if ($cfg{args}{ploidy} == 2);
 
-	$cfg{step5}{diversity}{windowsize} = 5000 unless (defined $cfg{step5}{diversity}{windowsize});
-	$cfg{step5}{diversity}{scaffold_number_limit} = 6 unless (defined $cfg{step5}{diversity}{scaffold_number_limit});
-	$cfg{step5}{diversity}{scaffold_length_cutoff} = 1000000 unless (defined $cfg{step5}{diversity}{scaffold_length_cutoff});
-	my $window_size = $cfg{step5}{diversity}{windowsize};
-	my $scaffold_number_limit = $cfg{step5}{diversity}{scaffold_number_limit};
-	my $scaffold_length_cutoff = $cfg{step5}{diversity}{scaffold_length_cutoff};
+	$cfg{step4}{slidingwindow}{windowsize} = 5000 unless (defined $cfg{step4}{slidingwindow}{windowsize});
+	$cfg{step4}{slidingwindow}{scaffold_number_limit} = 6 unless (defined $cfg{step4}{slidingwindow}{scaffold_number_limit});
+	$cfg{step4}{slidingwindow}{scaffold_length_cutoff} = 1000000 unless (defined $cfg{step4}{slidingwindow}{scaffold_length_cutoff});
+	$cfg{step4}{discoal}{hard_simulation_times} = 2000 unless (defined $cfg{step4}{discoal}{hard_simulation_times});
+	$cfg{step4}{discoal}{soft_simulation_times} = 500 unless (defined $cfg{step4}{discoal}{soft_simulation_times});
+	$cfg{step4}{discoal}{neut_simulation_times} = 2000 unless (defined $cfg{step4}{discoal}{neut_simulation_times});
+	my $window_size = $cfg{step4}{slidingwindow}{windowsize};
+	my $scaffold_number_limit = $cfg{step4}{slidingwindow}{scaffold_number_limit};
+	my $scaffold_length_cutoff = $cfg{step4}{slidingwindow}{scaffold_length_cutoff};
 
 	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
-	if (
-	 !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
+	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
 
 	open SH, ">$shpath/SFS.sh";
 
 	open CL1, ">$shpath/SFS.cmd1.list";
-
 	#loop for each available population
 	my %pop;
 	foreach my $sample (keys %{$cfg{population}}){
@@ -1535,15 +1649,12 @@ sub SFS{
 
 		my $pop_size = 2* $pop{$pop_name}{count};
 		if ($cfg{args}{ploidy} == 1 ){ $pop_size = $pop{$pop_name}{count};}
-		#$slidingwindowpath/$pop_name.SNP.vcf.gz\n";
-		#$slidingwindowpath/pop_name.snpEff.nonsyn.vcf.gz
-		#$slidingwindowpath/pop_name.snpEff.syn.vcf.gz
 		open IDSH, ">$shpath/$pop_name.SFS.sh";
 		print IDSH "mkdir -p $outpath/$pop_name && cd $outpath/$pop_name\n";
 		### project SFS from the file
-		print IDSH "easySFS.py -i $slidingwindowpath/$pop_name.SNP.vcf.gz -p $outpath/$pop_name.list --ploidy $cfg{args}{ploidy} --proj $pop_size -f -a && mv $outpath/$pop_name/output $outpath/$pop_name/total_sfs \n";
-		print IDSH "easySFS.py -i $slidingwindowpath/$pop_name.snpEff.nonsyn.vcf.gz -p $outpath/$pop_name.list --ploidy $cfg{args}{ploidy} --proj $pop_size -f -a && mv $outpath/$pop_name/output $outpath/$pop_name/nonsyn_sfs \n";
-		print IDSH "easySFS.py -i $slidingwindowpath/$pop_name.snpEff.syn.vcf.gz -p $outpath/$pop_name.list --ploidy $cfg{args}{ploidy} --proj $pop_size -f -a && mv $outpath/$pop_name/output $outpath/$pop_name/syn_sfs \n";
+		print IDSH "easySFS.py -i $slidingwindowpath/$pop_name.SNP.vcf.gz -p $outpath/$pop_name.list --ploidy $cfg{args}{ploidy} --proj $pop_size -f -a && rm -rf $outpath/$pop_name/total_sfs && mv $outpath/$pop_name/output $outpath/$pop_name/total_sfs \n";
+		print IDSH "easySFS.py -i $slidingwindowpath/$pop_name.snpEff.nonsyn.vcf.gz -p $outpath/$pop_name.list --ploidy $cfg{args}{ploidy} --proj $pop_size -f -a && rm -rf $outpath/$pop_name/nonsyn_sfs && mv $outpath/$pop_name/output $outpath/$pop_name/nonsyn_sfs \n";
+		print IDSH "easySFS.py -i $slidingwindowpath/$pop_name.snpEff.syn.vcf.gz -p $outpath/$pop_name.list --ploidy $cfg{args}{ploidy} --proj $pop_size -f -a && rm -rf $outpath/$pop_name/syn_sfs  && mv $outpath/$pop_name/output $outpath/$pop_name/syn_sfs \n";
 
 		print IDSH "cp -f $Bin/lib/1PopBot20Mb.est $outpath/$pop_name/ && cp -f $Bin/lib/1PopBot20Mb.tpl $outpath/$pop_name/ && cp -f $outpath/$pop_name/total_sfs/fastsimcoal2/pop1_MAFpop0.obs $outpath/$pop_name/1PopBot20Mb_MAFpop0.obs\n";
 		print IDSH "sed -i `s/18/$pop_size/g` $outpath/$pop_name/1PopBot20Mb_MAFpop0.obs\n";
@@ -1559,8 +1670,9 @@ sub SFS{
 	close SH;
 
 	#`sh $shpath/SFS.sh 1>$shpath/SFS.sh.o 2>$shpath/SFS.sh.e` unless ($skipsh ==1);
-	open SH, ">$shpath/Simulation.sh";
+	
 	foreach my $pop_name (keys %pop){
+		open SH, ">$shpath/$pop_name.Simulation.sh";
 		next unless ($pop{$pop_name}{count} > 6);
 		open NELT, "$outpath/$pop_name/EstimatedNe.list";
 		my @nelt = <NELT>;
@@ -1571,7 +1683,7 @@ sub SFS{
 		print "$a[0]\n";
 
 		my $m_rate=0.000000025;
-		my $Bigwindowsize = 11*$cfg{step5}{diversity}{windowsize};
+		my $Bigwindowsize = 11*$cfg{step4}{slidingwindow}{windowsize};
 		my $Ne = $a[0];
 		my $Nan = $a[1];
 		my $Nbot = $a[2];
@@ -1595,37 +1707,58 @@ sub SFS{
 		for (my $i=0; $i<11;$i++){
 			my $x = $init + $step*$i;
 
-			# run simulated 
-			print SIMUCL "#/root/discoal/discoal $pop_size 1000 $Bigwindowsize -Pt ", $Pt_min, " ", $Pt_max, " -Pre ", $Pt_min, " ", $Pt_max, " -Pa ", $Pa_min, " ", $Pa_max, " -Pu 0.000000 0.000040 -ws 0 ";
+			# simulate hard sweeps
+			print SIMUCL "/root/discoal/discoal $pop_size $cfg{step4}{discoal}{hard_simulation_times} $Bigwindowsize -Pt ", $Pt_min, " ", $Pt_max, " -Pre ", $Pt_min, " ", $Pt_max, " -Pa ", $Pa_min, " ", $Pa_max, " -Pu 0.000000 0.000040 -ws 0 ";
 			print SIMUCL "-en ", $Tbot/$Ne, " 0 ", $Nbot/$Ne, " -en ", $Tan/$Ne, " 0 ", $Nan/$Ne;
 			print SIMUCL " -x $x >$outpath/$pop_name/hard_$i.msOut\n";
-			print FVECCL "python /root/diploSHIC/diploSHIC.py fvecSim diploid hard_$i.msOut hard_$i.fvec --totalPhysLen $Bigwindowsize\n";
-
-			print SIMUCL "/root/discoal/discoal $pop_size 1000 $Bigwindowsize -Pt ", $Pt_min, " ", $Pt_max, " -Pre ", $Pt_min, " ", $Pt_max, " -Pa ", $Pa_min, " ", $Pa_max, " -Pu 0.000000 0.000040 -ws 0 -Pf 0 0.2 ";
+			print FVECCL "python /root/diploSHIC/diploSHIC.py fvecSim diploid hard_$i.msOut hard_$i.fvec --totalPhysLen $Bigwindowsize\n" if ($cfg{args}{ploidy} == 2);
+			print FVECCL "python /root/diploSHIC/diploSHIC.py fvecSim haploid hard_$i.msOut hard_$i.fvec --totalPhysLen $Bigwindowsize\n" if ($cfg{args}{ploidy} == 1);
+			# simulate soft sweeps
+			print SIMUCL "/root/discoal/discoal $pop_size $cfg{step4}{discoal}{soft_simulation_times} $Bigwindowsize -Pt ", $Pt_min, " ", $Pt_max, " -Pre ", $Pt_min, " ", $Pt_max, " -Pa ", $Pa_min, " ", $Pa_max, " -Pu 0.000000 0.000040 -ws 0 -Pf 0 0.1 ";
 			print SIMUCL "-en ", $Tbot/$Ne, " 0 ", $Nbot/$Ne, " -en ", $Tan/$Ne, " 0 ", $Nan/$Ne;
 			print SIMUCL " -x $x >$outpath/$pop_name/soft_$i.msOut\n";
-			print FVECCL "python /root/diploSHIC/diploSHIC.py fvecSim diploid soft_$i.msOut soft_$i.fvec --totalPhysLen $Bigwindowsize\n";
+			print FVECCL "python /root/diploSHIC/diploSHIC.py fvecSim diploid soft_$i.msOut soft_$i.fvec --totalPhysLen $Bigwindowsize\n" if ($cfg{args}{ploidy} == 2);
+			print FVECCL "python /root/diploSHIC/diploSHIC.py fvecSim haploid soft_$i.msOut soft_$i.fvec --totalPhysLen $Bigwindowsize\n" if ($cfg{args}{ploidy} == 1);
 		}
-		print SIMUCL "#/root/discoal/discoal $pop_size 1000 $Bigwindowsize -Pt ", $Pt_min, " ", $Pt_max, " -Pre ", $Pt_min, " ", $Pt_max;
+		print SIMUCL "/root/discoal/discoal $pop_size $cfg{step4}{discoal}{neut_simulation_times} $Bigwindowsize -Pt ", $Pt_min, " ", $Pt_max, " -Pre ", $Pt_min, " ", $Pt_max;
 		print SIMUCL " -en ", $Tbot/$Ne, " 0 ", $Nbot/$Ne, " -en ", $Tan/$Ne, " 0 ", $Nan/$Ne;
 		print SIMUCL " >$outpath/$pop_name/neut.msOut\n";
-		print FVECCL "python /root/diploSHIC/diploSHIC.py fvecSim diploid neut.msOut neut.fvec --totalPhysLen $Bigwindowsize\n";
+		print FVECCL "python /root/diploSHIC/diploSHIC.py fvecSim diploid neut.msOut neut.fvec --totalPhysLen $Bigwindowsize\n" if ($cfg{args}{ploidy} == 2);
+		print FVECCL "python /root/diploSHIC/diploSHIC.py fvecSim haploid neut.msOut neut.fvec --totalPhysLen $Bigwindowsize\n" if ($cfg{args}{ploidy} == 1);
 		close SIMUCL;
 
 		print SH "cd $outpath/$pop_name/\n";
 		print SH "parallel -j 23 < $shpath/$pop_name.Simulation.cmd.list\n";
-		print SH "#parallel -j 23 < $shpath/$pop_name.SimFvec.cmd.list\n";
-		print SH "#mkdir -p $outpath/$pop_name/rawFVFiles && mv $outpath/$pop_name/*.fvec rawFVFiles/\n";
-		print SH "#mkdir -p $outpath/$pop_name/trainingSets\n";
-		print SH "#python /root/diploSHIC/diploSHIC.py makeTrainingSets rawFVFiles/neut.fvec rawFVFiles/soft rawFVFiles/hard 5 0,1,2,3,4,6,7,8,9,10 trainingSets/\n";
-		print SH "#python /root/diploSHIC/diploSHIC.py train trainingSets/ trainingSets/ bfsModel\n"
-	}
-	close SH;
-	`sh $shpath/Simulation.sh 1>$shpath/Simulation.sh.o 2>$shpath/Simulation.sh.e` unless ($skipsh ==1);
+		print SH "parallel -j 23 < $shpath/$pop_name.SimFvec.cmd.list\n";
+		print SH "mkdir -p $outpath/$pop_name/rawFVFiles && mv $outpath/$pop_name/*.fvec rawFVFiles/\n";
+		print SH "mkdir -p $outpath/$pop_name/trainingSets\n";
+		print SH "python /root/diploSHIC/diploSHIC.py makeTrainingSets rawFVFiles/neut.fvec rawFVFiles/soft rawFVFiles/hard 5 0,1,2,3,4,6,7,8,9,10 trainingSets/\n";
+		print SH "mkdir -p $outpath/$pop_name/updatedSets\n";
+		print SH "less trainingSets/linkedHard.fvec|perl -ne '\@a = split /\\t/; \$i++;\$l=\@a;if (\$l == 132){print;}' >$outpath/$pop_name/updatedSets/linkedHard.fvec\n";
+		print SH "less trainingSets/hard.fvec|perl -ne '\@a = split /\\t/; \$i++;\$l=\@a;if (\$l == 132){print;}' >$outpath/$pop_name/updatedSets/hard.fvec\n";
+		print SH "less trainingSets/linkedSoft.fvec|perl -ne '\@a = split /\\t/; \$i++;\$l=\@a;if (\$l == 132){print;}' >$outpath/$pop_name/updatedSets/linkedSoft.fvec\n";
+		print SH "less trainingSets/neut.fvec|perl -ne '\@a = split /\\t/; \$i++;\$l=\@a;if (\$l == 132){print;}' >$outpath/$pop_name/updatedSets/neut.fvec\n";
+		print SH "less trainingSets/soft.fvec|perl -ne '\@a = split /\\t/; \$i++;\$l=\@a;if (\$l == 132){print;}' >$outpath/$pop_name/updatedSets/soft.fvec\n";
+		print SH "python /root/diploSHIC/diploSHIC.py train updatedSets/ updatedSets/ bfsModel\n";
+		print SH "mkdir -p $outpath/$pop_name/observedFVFiles && cp $slidingwindowpath/*.$pop_name.SNP.fvec $outpath/$pop_name/observedFVFiles/\n";
 
+		my $i = 1;
+		open PREDCL, ">$shpath/$pop_name.predict.cmd.list";
+		foreach my $id(sort { $genome->{len}{$b} <=> $genome->{len}{$a} } keys %{$genome->{len}}){
+			if (($genome->{len}{$id}>=$scaffold_length_cutoff)&&($i<=$scaffold_number_limit)){
+				my $len=$genome->{len}{$id};
+				print PREDCL "python /root/diploSHIC/diploSHIC.py predict bfsModel.json bfsModel.weights.hdf5 $outpath/$pop_name/observedFVFiles/$id.$pop_name.SNP.fvec $outpath/$pop_name/observedFVFiles/$id.$pop_name.SNP.preds\n";
+				$i++;
+			}
+		}
+		close PREDCL;
+		print SH "parallel -j 40 < $shpath/$pop_name.predict.cmd.list\n";
+		close SH;
+		`sh $shpath/$pop_name.Simulation.sh 1>$shpath/$pop_name.Simulation.sh.o 2>$shpath/$pop_name.Simulation.sh.e` unless ($skipsh ==1);
+	}
 }
 
-#---------------------------------------07.Selection------------------------------------------------
+#---------------------------------------06.Selection------------------------------------------------
 sub MKTEST{
 	my ($yml_file,$skipsh) = @_;
 	my $yaml = YAML::Tiny->read( $yml_file );
@@ -1702,7 +1835,7 @@ sub MKTEST{
 	print SH "MK-test.pl $outpath/polymorphism.txt $outpath/Divergence.txt >$outpath/MK-test.SCO.result\n";
 	close SH;
 
-	#`sh $shpath/MKtest.sh 1>$shpath/MKtest.sh.o 2>$shpath/MKtest.sh.e` unless ($skipsh ==1);
+	`sh $shpath/MKtest.sh 1>$shpath/MKtest.sh.o 2>$shpath/MKtest.sh.e` unless ($skipsh ==1);
 
 	open IN, "$outpath/polymorphism.txt";
 	my $piN = 0; 
