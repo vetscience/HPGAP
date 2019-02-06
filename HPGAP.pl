@@ -147,7 +147,7 @@ Author
 	please contact me if you find any bug.
 							   	
 Usage
-	HPGAP.pl --samplelist sample.list --reference reference.fa [-options]
+	HPGAP.pl --config data.yml --run <String> [-options]
 	
 	--run <String> use this option choose one of steps below (the option should not be used with --step at the same time)
 		step0_indexing

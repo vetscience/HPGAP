@@ -66,8 +66,8 @@ This command will generate an HPGAP.main.sh in your working directory. You shoul
 
 ~~~
 Usage
-	HPGAP.pl --samplelist sample.list --reference reference.fa [-options]
-
+	HPGAP.pl --config data.yml --run <String> [-options]
+	
 	--run <String> use this option to choose one of steps below (this option should not be used with --step at the same time)
 		step0_indexing
 		step1_read_filtering
