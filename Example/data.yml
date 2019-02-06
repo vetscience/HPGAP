@@ -94,8 +94,7 @@ fqdata: # Set up the sample fqdata
         fq2: <your path to read 2 file >
   56-2: # Sample id
     rawdata:
-      CL56-2:
-        Flag: #library id
+      CL56-2: #library id
         Flag: PE # PE (paired end) or SE (single end)
         PL: BGISEQ500 # Sequencing platform 
         Phred: '33' # Phred scoring system of the fastq data
