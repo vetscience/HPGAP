@@ -7,8 +7,10 @@ The workflow for analysis using `HPGAP` consists of five basic parts. 1) Variant
 
 ## Dependencies
 
-* miniconda
-* udocker
+* git
+* wget
+* miniconda3
+* udocker v1.1.1
 
 ## Installation
 
@@ -50,7 +52,7 @@ udocker create --name=HPGAP_c1 walkbay3000/hpgap:latest
 
 ## Run the pipeline
 
-To run the pipeline, simply follow this command:
+To run the pipeline, first, you need to prepare the configuration file (see "setting the configuration file"). After that, you can use the following command to generate a "HPGAP.main.sh", which contains the specific command lines for running each step of the analysis.
 
 ~~~bash
 udocker run -v <the path to your git cloned directory>:<the path to your git cloned directory> -v <the path to your working directory>:<the path to your working directory> --env="PATH=<the path to your git cloned directory>" HPGAP_c1 /bin/bash -c 'HPGAP.pl --config <the path to your configuration file>'
@@ -66,7 +68,7 @@ This command will generate an HPGAP.main.sh in your working directory. You shoul
 Usage
 	HPGAP.pl --samplelist sample.list --reference reference.fa [-options]
 
-	--run <String> use this option choose one of steps below (the option should not be used with --step at the same time)
+	--run <String> use this option to choose one of steps below (this option should not be used with --step at the same time)
 		step0_indexing
 		step1_read_filtering
 		step1_read_mapping
@@ -86,7 +88,7 @@ Usage
 	--config path to the .yml config file
 	--step <String>	specified steps , separated by commas (e.g., "0:A;1:A,B,C,E,F,G").
 		0:indexing;
-		1:read_filtering,read_mapping,recalibration,variant_calling,combine_calling,variant_filtering;
+				1:read_filtering,read_mapping,recalibration,variant_calling,combine_calling,variant_filtering;
 		3:phylogeny,admixture;
 		5:homozygosity,roh,ld,slidingwindow,sfs
 	--skipsh use this to skip running bash inside the pipeline
@@ -102,161 +104,165 @@ Note
 
 ## Setting the configuration file
 
-Here is an example configuration file,  you can change the path within the file and run the example analysis.
+Here is an example configuration file,  you can edit the paths and values within the file and use that for the example analysis.
 
 ~~~yaml
 ---
 args:
-  container: HPGAP_c1
-  env: PATH=/root/admixture_linux-1.3.0/:/root/gatk:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin/:/usr/sbin:/usr/bin:/sbin:/bin:/sbin:/bin:<your path to the pipeline>:<your path to the pipeline>/lib:<your path to the pipeline>/Tools
-  mount:
+  container: HPGAP_c1 # Specify the name of the hpgap container
+  env: PATH=/root/admixture_linux-1.3.0/:/root/gatk:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin/:/usr/sbin:/usr/bin:/sbin:/bin:/sbin:/bin:<your path to the pipeline>:<your path to the pipeline>/lib:<your path to the pipeline>/Tools # Set up the $PATH in the container. The paths to git cloned directory and the lib and Tools directories as well.
+  mount: # Set up the mapping to mount your host directories to the directories of the container 
     -
-      dockerpath: <your working directory in the container>
-      hostpath: <your working directory>
+      dockerpath: <your container pipeline directory>
+      hostpath: <your host pipeline directory >
+    -
+      dockerpath: <your container working directory> 
+      hostpath: <your host working directory >
   outdir: <your working directory>
-  ploidy: '2'
-fqdata:
-  1-1:
+  ploidy: '2' # set 1 for haploid; set 2 for diploid.
+fqdata: # Set up the sample fqdata
+  1-1: # Sample id
     rawdata:
-      CL1-1:
-        Flag: PE
-        PL: BGISEQ500
-        Phred: '33'
-        fq1: /home/darcy/PopGen_WorkFlow/Example/Input/Data/1-1_r1.fastq.gz
-        fq2: /home/darcy/PopGen_WorkFlow/Example/Input/Data/1-1_r2.fastq.gz
-  1-2:
+      CL1-1: #library id
+        Flag: PE # PE (paired end) or SE (single end)
+        PL: BGISEQ500 # Sequencing platform 
+        Phred: '33' # Phred scoring system of the fastq data
+        fq1: <your path to read 1 file >
+        fq2: <your path to read 2 file >
+  1-2: # Sample id
     rawdata:
-      CL1-2:
-        Flag: PE
-        PL: BGISEQ500
-        Phred: '33'
-        fq1: /home/darcy/PopGen_WorkFlow/Example/Input/Data/1-2_r1.fastq.gz
-        fq2: /home/darcy/PopGen_WorkFlow/Example/Input/Data/1-2_r2.fastq.gz
-  14-1:
+      CL1-2: #library id
+        Flag: PE # PE (paired end) or SE (single end)
+        PL: BGISEQ500 # Sequencing platform 
+        Phred: '33' # Phred scoring system of the fastq data
+        fq1: <your path to read 1 file >
+        fq2: <your path to read 2 file >
+  14-1: # Sample id
     rawdata:
-      CL14-1:
-        Flag: PE
-        PL: BGISEQ500
-        Phred: '33'
-        fq1: /home/darcy/PopGen_WorkFlow/Example/Input/Data/14-1_r1.fastq.gz
-        fq2: /home/darcy/PopGen_WorkFlow/Example/Input/Data/14-1_r2.fastq.gz
-  17-1:
+      CL14-1: #library id
+        Flag: PE # PE (paired end) or SE (single end)
+        PL: BGISEQ500 # Sequencing platform 
+        Phred: '33' # Phred scoring system of the fastq data
+        fq1: <your path to read 1 file >
+        fq2: <your path to read 2 file >
+  17-1: # Sample id
     rawdata:
-      CL17-1:
-        Flag: PE
-        PL: BGISEQ500
-        Phred: '33'
-        fq1: /home/darcy/PopGen_WorkFlow/Example/Input/Data/17-1_r1.fastq.gz
-        fq2: /home/darcy/PopGen_WorkFlow/Example/Input/Data/17-1_r2.fastq.gz
-  26-1:
+      CL17-1: #library id
+        Flag: PE # PE (paired end) or SE (single end)
+        PL: BGISEQ500 # Sequencing platform 
+        Phred: '33' # Phred scoring system of the fastq data
+        fq1: <your path to read 1 file >
+        fq2: <your path to read 2 file >
+  26-1: # Sample id
     rawdata:
-      CL26-1:
-        Flag: PE
-        PL: BGISEQ500
-        Phred: '33'
-        fq1: /home/darcy/PopGen_WorkFlow/Example/Input/Data/26-1_r1.fastq.gz
-        fq2: /home/darcy/PopGen_WorkFlow/Example/Input/Data/26-1_r2.fastq.gz
-  32-1:
+      CL26-1: #library id
+        Flag: PE # PE (paired end) or SE (single end)
+        PL: BGISEQ500 # Sequencing platform 
+        Phred: '33' # Phred scoring system of the fastq data
+        fq1: <your path to read 1 file >
+        fq2: <your path to read 2 file >
+  32-1: # Sample id
     rawdata:
-      CL32-1:
-        Flag: PE
-        PL: BGISEQ500
-        Phred: '33'
-        fq1: /home/darcy/PopGen_WorkFlow/Example/Input/Data/32-1_r1.fastq.gz
-        fq2: /home/darcy/PopGen_WorkFlow/Example/Input/Data/32-1_r2.fastq.gz
-  35-1:
+      CL32-1: #library id
+        Flag: PE # PE (paired end) or SE (single end)
+        PL: BGISEQ500 # Sequencing platform 
+        Phred: '33' # Phred scoring system of the fastq data
+        fq1: <your path to read 1 file >
+        fq2: <your path to read 2 file >
+  35-1: # Sample id
     rawdata:
-      CL35-1:
-        Flag: PE
-        PL: BGISEQ500
-        Phred: '33'
-        fq1: /home/darcy/PopGen_WorkFlow/Example/Input/Data/35-1_r1.fastq.gz
-        fq2: /home/darcy/PopGen_WorkFlow/Example/Input/Data/35-1_r2.fastq.gz
-  44-1:
+      CL35-1: #library id
+        Flag: PE # PE (paired end) or SE (single end)
+        PL: BGISEQ500 # Sequencing platform 
+        Phred: '33' # Phred scoring system of the fastq data
+        fq1: <your path to read 1 file >
+        fq2: <your path to read 2 file >
+  44-1: # Sample id
     rawdata:
-      CL44-1:
-        Flag: PE
-        PL: BGISEQ500
-        Phred: '33'
-        fq1: /home/darcy/PopGen_WorkFlow/Example/Input/Data/44-1_r1.fastq.gz
-        fq2: /home/darcy/PopGen_WorkFlow/Example/Input/Data/44-1_r2.fastq.gz
-  49-1:
+      CL44-1: #library id
+        Flag: PE # PE (paired end) or SE (single end)
+        PL: BGISEQ500 # Sequencing platform 
+        Phred: '33' # Phred scoring system of the fastq data
+        fq1: <your path to read 1 file >
+        fq2: <your path to read 2 file >
+  49-1: # Sample id
     rawdata:
-      CL49-1:
-        Flag: PE
-        PL: BGISEQ500
-        Phred: '33'
-        fq1: /home/darcy/PopGen_WorkFlow/Example/Input/Data/49-1_r1.fastq.gz
-        fq2: /home/darcy/PopGen_WorkFlow/Example/Input/Data/49-1_r2.fastq.gz
-  56-1:
+      CL49-1: #library id
+        Flag: PE # PE (paired end) or SE (single end)
+        PL: BGISEQ500 # Sequencing platform 
+        Phred: '33' # Phred scoring system of the fastq data
+        fq1: <your path to read 1 file >
+        fq2: <your path to read 2 file >
+  56-1: # Sample id
     rawdata:
-      CL56-1:
-        Flag: PE
-        PL: BGISEQ500
-        Phred: '33'
-        fq1: /home/darcy/PopGen_WorkFlow/Example/Input/Data/56-1_r1.fastq.gz
-        fq2: /home/darcy/PopGen_WorkFlow/Example/Input/Data/56-1_r2.fastq.gz
-  56-2:
+      CL56-1: #library id
+        Flag: PE # PE (paired end) or SE (single end)
+        PL: BGISEQ500 # Sequencing platform 
+        Phred: '33' # Phred scoring system of the fastq data
+        fq1: <your path to read 1 file >
+        fq2: <your path to read 2 file >
+  56-2: # Sample id
     rawdata:
       CL56-2:
-        Flag: PE
-        PL: BGISEQ500
-        Phred: '33'
-        fq1: /home/darcy/PopGen_WorkFlow/Example/Input/Data/56-2_r1.fastq.gz
-        fq2: /home/darcy/PopGen_WorkFlow/Example/Input/Data/56-2_r2.fastq.gz
-population:
-  1-1:
+        Flag: #library id
+        Flag: PE # PE (paired end) or SE (single end)
+        PL: BGISEQ500 # Sequencing platform 
+        Phred: '33' # Phred scoring system of the fastq data
+        fq1: <your path to read 1 file >
+        fq2: <your path to read 2 file >
+population: 
+  1-1: # Sample id
+    'presumed population': South # Here, you can assign population labels for your samples (eg. South and North Populations)
+  1-2: # Sample id
     'presumed population': South
-  1-2:
+  14-1: # Sample id
     'presumed population': South
-  14-1:
+  17-1: # Sample id
     'presumed population': South
-  17-1:
+  26-1: # Sample id
     'presumed population': South
-  26-1:
+  32-1: # Sample id
     'presumed population': South
-  32-1:
+  35-1: # Sample id
     'presumed population': South
-  35-1:
+  44-1: # Sample id
     'presumed population': South
-  44-1:
+  49-1: # Sample id
     'presumed population': South
-  49-1:
-    'presumed population': South
-  56-1:
+  56-1: # Sample id
     'presumed population': North
-  56-2:
+  56-2: # Sample id
     'presumed population': North
 ref:
-  choose: Cs-c1
+  choose: Cs-c1 # You can choose the reference you prefer for the following analysis
   db:
-    Cs-c1:
-      name: Cs-c1
+    Cs-c1: # label of reference 1
+      name: Cs-c1 # label of reference 1
       path: /home/darcy/PopGen_WorkFlow/Example//00.INDEXING//Cs-c1.example.fa
-    Cs-k2:
-      name: Cs-k2
+    Cs-k2: # label of reference 2
+      name: Cs-k2 # label of reference 2
       path: /home/darcy/PopGen_WorkFlow/Example//00.INDEXING//Cs-k2.example.fa
-step1:
+step1: # parameter settings for step1
   variant_filtering:
-    indel: 'QD < 2.0 || FS > 200.0 || ReadPosRankSum < -20.0'
-    ldcutoff: '0.3'
-    ldwindowsize: '50'
-    ldwindowstep: '10'
-    scaffold_length_cutoff: '0'
-    scaffold_number_limit: '2'
-    snp: 'QD < 2.0 || FS > 60.0 || MQ < 40.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0'
-step3:
+    indel: 'QD < 2.0 || FS > 200.0 || ReadPosRankSum < -20.0' # the settins for indel filtering
+    ldcutoff: '0.3' # cut off for filtering SNVs with high LD
+    ldwindowsize: '50' # window size for for filtering SNVs with high LD
+    ldwindowstep: '10' # window step for filtering SNVs with high LD
+    scaffold_length_cutoff: '0' # only analyse the scaffolds with length larger than the cutoff
+    scaffold_number_limit: '2' # the maximum number of scaffolds
+    snp: 'QD < 2.0 || FS > 60.0 || MQ < 40.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0' # the settins for snv filtering
+step3: # parameter settings for step2
   admixture: ~
-step4:
-  discoal:
-    hard_simulation_times: '100'
-    neut_simulation_times: '100'
-    soft_simulation_times: '100'
+step4: # parameter settings for step4
+  discoal: 
+    hard_simulation_times: '100' # the number of simulation for generating simulated hard sweep data
+    neut_simulation_times: '100' # the number of simulation for generating simulated neutral data
+    soft_simulation_times: '100' # the number of simulation for generating simulated soft sweep data
   slidingwindow:
-    gff: /home/darcy/PopGen_WorkFlow/Example/Input/Data/clonorchis_sinensis.example.gff
-    scaffold_length_cutoff: '5000'
-    scaffold_number_limit: '10000'
-    snpeff_species: Clonorchis_sinensis_henan
-    windowsize: '5000'
+    gff: /home/darcy/PopGen_WorkFlow/Example/Input/Data/clonorchis_sinensis.example.gff # the gff file for the species
+    scaffold_length_cutoff: '5000' # only analyse the scaffolds with length larger than the cutoff
+    scaffold_number_limit: '10000' # the maximum number of scaffolds
+    snpeff_species: Clonorchis_sinensis_henan # the species name in the snpeff database 
+    windowsize: '5000' # window size
 ~~~
 

@@ -118,7 +118,7 @@ print MH "$udocker_cmd 'HPGAP.pl --run step4_ld --config $allcfg'\n" if (exists 
 PopGenome::LD($allcfg,$skipsh) if ($run eq 'step4_ld');
 
 #05.IntraPopulation
-print MH "$udocker_cmd 'HPGAP.pl --run step4_diversity --config $allcfg'\n" if (exists $step{4}{slidingwindow});
+print MH "$udocker_cmd 'HPGAP.pl --run step4_slidingwindow --config $allcfg'\n" if (exists $step{4}{slidingwindow});
 PopGenome::SLIDINGWINDOW($allcfg,$skipsh) if ($run eq 'step4_slidingwindow');
 
 print MH "$udocker_cmd 'HPGAP.pl --run step4_sfs --config $allcfg'\n" if (exists $step{4}{sfs});

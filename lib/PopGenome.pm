@@ -779,8 +779,8 @@ sub VARIANT_FILTERING{
 	$cfg{step1}{variant_filtering}{scaffold_number_limit} = 95 unless (defined $cfg{step1}{variant_filtering}{scaffold_number_limit});
 	$cfg{step1}{variant_filtering}{scaffold_length_cutoff} = 0 unless (defined $cfg{step1}{variant_filtering}{scaffold_length_cutoff});
 	#set ld prunning cut off
-	$cfg{step1}{variant_filtering}{ldwindowsize} = 50 unless (defined $cfg{step1}{variant_filtering}{ldwindowsize});
-	$cfg{step1}{variant_filtering}{ldwindowstep} = 10 unless (defined $cfg{step1}{variant_filtering}{ldwindowstep});
+	$cfg{step1}{variant_filtering}{ldwindowsize} = 10 unless (defined $cfg{step1}{variant_filtering}{ldwindowsize});
+	$cfg{step1}{variant_filtering}{ldwindowstep} = 5 unless (defined $cfg{step1}{variant_filtering}{ldwindowstep});
 	$cfg{step1}{variant_filtering}{ldcutoff} = 0.3 unless (defined $cfg{step1}{variant_filtering}{ldcutoff});
 
 	### load reference and map scaffold to number list 
@@ -822,6 +822,36 @@ EOF
 	$cfg{step1}{variant_filtering}{high_confidence_vcf}="$outpath/high_confidence.vcf.gz";
 	$cfg{step1}{variant_filtering}{lowld_high_confidence_vcf}="$outpath/high_confidence_prunned.vcf.gz";
 	
+	### format a report
+	my %report;
+	open IN, "$outpath/$cfg{step1}{variant_filtering}{vcf}";
+	$report{snv1}{number}=0;
+	while (<IN>){
+		next if (/^#/);
+		$report{snv1}{number} ++;
+	}
+	$report{snv1}{singletons} = `wc -l singletons.list`;
+	$report{snv1}{singletons} = $report{snv1}{singletons} - 1;
+	open IN, "$outpath/$cfg{step1}{high_confidence_vcf}{vcf}";
+	$report{snv2}{number}=0;
+	while (<IN>){
+		next if (/^#/);
+		$report{snv2}{number} ++;
+	}
+
+	open IN, "$outpath/$cfg{step1}{lowld_high_confidence_vcf}{vcf}";
+	$report{snv3}{number}=0;
+	while (<IN>){
+		next if (/^#/);
+		$report{snv3}{number} ++;
+	}
+	####
+	open OT, ">$outpath/snv.summary.txt";
+	print OT "SNV set\tSNV size\tSingleton size\n";
+	print OT "PASS.SNP.DP.vcf.gz\t$report{snv1}{number}\t$report{snv1}{singletons}\n";
+	print OT "high_confidence.vcf.gz\t$report{snv2}{number}\t0\n";
+	print OT "high_confidence_prunned.vcf.gz\t$report{snv3}{number}\t0\n";
+	close OT; 
 	# create this yaml object
 	$yaml = YAML::Tiny->new( \%cfg );
 	# Save both documents to a file
@@ -1584,7 +1614,7 @@ sub SLIDINGWINDOW{
 		close STAT;
 
 		open ALLSTAT, ">$outpath/final.$pop_name.allstat.txt";
-		print ALLSTAT "chrom\tstart\tend\tcoding_percentage\tgc_content\tpi\ttheta\ttajimsD\tps\tpn\tpnps\n";
+		print ALLSTAT "chrom\tstart\tend\tgc_content\tcoding_percentage\tpi\ttheta\ttajimsD\tr2\tps\tpn\tpnps\n";
 		open STAT, "$outpath/$pop_name.allstat.txt";
 		while(<STAT>){
 			chomp;
@@ -1594,7 +1624,9 @@ sub SLIDINGWINDOW{
 		}
 		close STAT;
 		close ALLSTAT;
-	}	
+		`Rscript --vanilla $Bin/lib/Correlation.R $outpath $outpath/final.$pop_name.allstat.txt`;
+	}
+	
 	# create this yaml object
 	$yaml = YAML::Tiny->new( \%cfg );
 	# Save both documents to a file
@@ -1763,8 +1795,8 @@ sub MKTEST{
 	my ($yml_file,$skipsh) = @_;
 	my $yaml = YAML::Tiny->read( $yml_file );
 	my %cfg = %{$yaml->[0]};
-	my $outpath = "$cfg{args}{outdir}/06.Selection/MKtest/";
-	my $shpath = "$cfg{args}{outdir}/NewShell/06.Selection/MKtest/";
+	my $outpath = "$cfg{args}{outdir}/05.Selection/MKtest/";
+	my $shpath = "$cfg{args}{outdir}/NewShell/05.Selection/MKtest/";
 
 	#my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
 	my $gzvcf = $cfg{step1}{variant_filtering}{high_confidence_vcf};
