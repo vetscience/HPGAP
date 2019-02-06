@@ -1,7 +1,7 @@
 # HPGAP
 Helminth Population Genomic Analysis Pipeline
 
-This repo contains the implementation for `HPGAP` , along with its associated support scripts, libraries and example population genomic data.
+This repo contains the implementation for `HPGAP` , along with its associated support scripts, libraries and example population genomic data. You can also check the installed programs and packages with the DockerFile.
 
 The workflow for analysis using `HPGAP` consists of five basic parts. 1) Variant calling; 2) Sample filtering; 3) Inferring genetic relationships; 4) Intra-population analysis; 5) identifying loci under nature selection. 
 
@@ -56,6 +56,8 @@ To run the pipeline, simply follow this command:
 udocker run -v <the path to your git cloned directory>:<the path to your git cloned directory> -v <the path to your working directory>:<the path to your working directory> --env="PATH=<the path to your git cloned directory>" HPGAP_c1 /bin/bash -c 'HPGAP.pl --config <the path to your configuration file>'
 ~~~
 
+This command will generate an HPGAP.main.sh in your working directory. You should first try to run the HPGAP.main.sh step by step. 
+
 
 
 ## Usage
@@ -99,6 +101,8 @@ Note
 
 
 ## Setting the configuration file
+
+Here is an example configuration file,  you can change the path within the file and run the example analysis.
 
 ~~~yaml
 ---

@@ -1,0 +1,143 @@
+#!/usr/bin/bash
+# Dockerfile
+FROM ubuntu:16.04
+RUN apt-get update && apt-get install -y wget bzip2 git
+RUN apt-get install -y zip
+RUN apt-get install -y unzip
+RUN apt-get install -y vim
+RUN apt-get install -y parallel
+WORKDIR /root
+
+LABEL about.license="BSD 3-clause License"
+LABEL about.license_file="https://conda.io/docs/license.html"
+LABEL about.license_file="https://repo.continuum.io/EULA/Anaconda+End+User+License+Agreement.txt"
+
+RUN wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
+RUN echo -e "\nyes\n" | bash Miniconda3-latest-Linux-x86_64.sh
+ENV PATH=/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+RUN conda update -n base conda
+RUN conda config --add channels defaults
+RUN conda config --add channels conda-forge
+RUN conda config --add channels bioconda
+LABEL about.license_file=https://opensource.org/licenses/osl-2.1.php
+RUN conda install samtools=1.9
+RUN conda install bwa=0.7.8
+RUN conda install bcftools=1.9
+RUN conda install vcftools=0.1.16
+RUN conda install plink=1.90b4
+RUN conda install bbmap=38.22
+RUN conda install snpeff=4.3k
+RUN conda install picard=2.9.2
+RUN conda install trimmomatic=0.38
+LABEL about.license="BSD 3-Clause License"
+
+RUN wget https://github.com/broadinstitute/gatk/releases/download/4.0.8.1/gatk-4.0.8.1.zip
+RUN unzip gatk-4.0.8.1.zip
+RUN ln -s gatk-4.0.8.1 gatk
+ENV PATH=/root/gatk:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+RUN apt-get install -y tabix
+WORKDIR /root
+
+RUN apt-get -y install r-base
+#RUN echo "r <- getOption('repos'); r['CRAN'] <- 'http://cran.us.r-project.org'; options(repos = r);" > ~/.Rprofile
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("ggplot2")'
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("plyr")'
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("reshape2")'
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("gridExtra")'
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("rmarkdown")'
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("SNPRelate")'
+
+RUN conda install pandoc=2.2.3.2
+RUN conda install plink=1.90b4
+RUN conda install beagle=4.1_21Jan17.6cc.jar
+RUN conda install snpsift=4.3.1t
+
+RUN wget http://www.genetics.ucla.edu/software/admixture/binaries/admixture_linux-1.3.0.tar.gz
+RUN tar -xvf admixture_linux-1.3.0.tar.gz
+ENV PATH=/root/admixture_linux-1.3.0/:/root/gatk:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+RUN snpEff download -c /root/miniconda3/share/snpeff-4.3k-0/snpEff.config -v Caenorhabditis_briggsae
+
+RUN conda install -c bioconda phylip=3.697
+RUN conda install -c bioconda treemix=1.12
+
+RUN conda install -c anaconda numpy
+RUN conda install -c bioconda pyvcf
+
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("getopt")'
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("phangorn")'
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("gdsfmt")'
+
+###Admixture
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("RColorBrewer")'
+
+###For OrthoMCL
+RUN conda create -n py27 python=2.7 anaconda
+RUN conda install -n py27 numpy
+
+###LD plot
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("dplyr")'
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("stringr")'
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("grid")'
+
+RUN conda install -c bioconda muscle
+
+#RUN /bin/bash -c 'source activate py27'
+
+WORKDIR /root
+
+###Dxy
+COPY ./genomics_general /root/genomics_general
+
+###Recalibration packages GATK
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("gplots")'
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("gsalib")'
+
+RUN cpan YAML::Tiny
+RUN conda install raxml=8.2.9
+RUN conda install -c cswarth seqmagick=0.6.1
+
+COPY ./jvarkit /root/jvarkit
+WORKDIR /root/jvarkit
+RUN make vcffilterjdk
+WORKDIR /root
+
+###MKtest
+RUN conda install -c bioconda prank=v.170427
+RUN cpan Bio::SeqIO
+RUN cpan Text::NSP::Measures::2D::Fisher2::twotailed
+RUN conda install -c bioconda dendropy=4.2.0
+
+###SNPEff (only for testing)
+ARG dbname="Clonorchis_sinensis_henan"
+#ARG gff3="/home/darcy/PopGen_WorkFlow/Cs_Application/Input/SNPEFF/clonorchis_sinensis_henan.gff3"
+#ARG fasta="/home/darcy/PopGen_WorkFlow/Cs_Application/Input/SNPEFF/Cs-c1.fa"
+WORKDIR /root/miniconda3/share/snpeff-4.3k-0
+RUN mkdir -p data/$dbname
+COPY ./clonorchis_sinensis_henan.gff3 data/$dbname/genes.gff
+COPY ./Cs-c1.fa data/$dbname/sequences.fa
+RUN echo "$dbname.genome : $dbname" >> snpEff.config
+RUN snpEff build -gff3 -v $dbname
+WORKDIR /root/
+
+RUN conda install -c conda-forge scikit-allel=1.2.0
+RUN pip install tensorflow
+RUN pip install keras
+COPY ./diploSHIC /root/diploSHIC
+WORKDIR /root/diploSHIC
+RUN python setup.py install
+WORKDIR /root/
+
+COPY ./discoal /root/discoal/
+WORKDIR /root/discoal
+RUN make discoal
+WORKDIR /root/
+
+RUN conda install -c bioconda dadi=1.7.0
+RUN pip install matplotlib
+
+COPY ./LDhat /root/LDhat/
+WORKDIR /root/LDhat/
+RUN make
+
+RUN Rscript -e 'source("http://bioconductor.org/biocLite.R")' -e 'biocLite("seqGDS2VCF")'
