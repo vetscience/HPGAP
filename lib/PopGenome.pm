@@ -824,27 +824,35 @@ EOF
 	
 	### format a report
 	my %report;
-	open IN, "$outpath/$cfg{step1}{variant_filtering}{vcf}";
+	if ($cfg{step1}{variant_filtering}{vcf} =~ /.gz$/) { open(IN, "gunzip -c $outpath/$cfg{step1}{variant_filtering}{vcf} |") || die "can’t open pipe to $cfg{step1}{variant_filtering}{vcf}";}
+		else { open(IN, $cfg{step1}{variant_filtering}{vcf}) || die "can’t open $cfg{step1}{variant_filtering}{vcf}";}
+
 	$report{snv1}{number}=0;
 	while (<IN>){
 		next if (/^#/);
 		$report{snv1}{number} ++;
 	}
+	close IN;
 	$report{snv1}{singletons} = `wc -l singletons.list`;
 	$report{snv1}{singletons} = $report{snv1}{singletons} - 1;
-	open IN, "$outpath/$cfg{step1}{high_confidence_vcf}{vcf}";
+
+	if ($cfg{step1}{high_confidence_vcf}{vcf} =~ /.gz$/) { open(IN, "gunzip -c $outpath/$cfg{step1}{high_confidence_vcf}{vcf} |") || die "can’t open pipe to $outpath/$cfg{step1}{high_confidence_vcf}{vcf}";}
+		else { open(IN, $cfg{step1}{high_confidence_vcf}{vcf}) || die "can’t open $outpath/$cfg{step1}{high_confidence_vcf}{vcf}";}
 	$report{snv2}{number}=0;
 	while (<IN>){
 		next if (/^#/);
 		$report{snv2}{number} ++;
 	}
+	close IN;
 
-	open IN, "$outpath/$cfg{step1}{lowld_high_confidence_vcf}{vcf}";
+	if ($cfg{step1}{lowld_high_confidence_vcf}{vcf} =~ /.gz$/) { open(IN, "gunzip -c $outpath/$cfg{step1}{lowld_high_confidence_vcf}{vcf} |") || die "can’t open pipe to $outpath/$cfg{step1}{lowld_high_confidence_vcf}{vcf}";}
+		else { open(IN, $cfg{step1}{lowld_high_confidence_vcf}{vcf}) || die "can’t open $outpath/$cfg{step1}{lowld_high_confidence_vcf}{vcf}";}
 	$report{snv3}{number}=0;
 	while (<IN>){
 		next if (/^#/);
 		$report{snv3}{number} ++;
 	}
+	close IN;
 	####
 	open OT, ">$outpath/snv.summary.txt";
 	print OT "SNV set\tSNV size\tSingleton size\n";
@@ -1334,10 +1342,10 @@ EOF
 				print IDSH "rm -rf $pop_name.$id.SNP.noSingle.beagl*\n";
 				print IDSH "beagle gt=$pop_name.$id.SNP.noSingle.vcf.gz out=$pop_name.$id.SNP.noSingle.beagle\n";
 #				print IDSH "vcftools --gzvcf $pop_name.$id.SNP.noSingle.beagle.vcf.gz --hap-r2 --ld-window-bp 1000000 --stdout |grep -v nan > $pop_name.$id.LD_window_1M.list\n";
-				print IDSH "#vcftools --gzvcf $pop_name.$id.SNP.noSingle.beagle.vcf.gz --geno-r2 --ld-window-bp 1000000 --stdout |grep -v nan | perl -ne '\@a=split /\\t+/;if (/CHR/){print;}elsif(((\$a[2]-\$a[1])>5000)&&(\$i!= 100)){\$i++;}elsif((\$a[2]-\$a[1])<=5000){print;}elsif(((\$a[2]-\$a[1])>5000 )&& (\$i ==100)){print;\$i=0;}'> $pop_name.$id.GLD_window_1M.list\n";
+				print IDSH "vcftools --gzvcf $pop_name.$id.SNP.noSingle.beagle.vcf.gz --geno-r2 --ld-window-bp 1000000 --stdout |grep -v nan | perl -ne '\@a=split /\\t+/;if (/CHR/){print;}elsif(((\$a[2]-\$a[1])>5000)&&(\$i!= 100)){\$i++;}elsif((\$a[2]-\$a[1])<=5000){print;}elsif(((\$a[2]-\$a[1])>5000 )&& (\$i ==100)){print;\$i=0;}'> $pop_name.$id.GLD_window_1M.list\n";
 				print IDSH "window_LD.pl $pop_name.$id.GLD_window_1M.list $cfg{step4}{slidingwindow}{windowsize} ",$genome->{len}{$id}," > $pop_name.$id.GLD_window.stats\n";
 #				print IDSH "cat $pop_name.$id.LD_window_1M.list",'|sed 1,1d | awk -F " " \'function abs(v) {return v < 0 ? -v : v}BEGIN{OFS="\t"}{print abs($3-$2),$5}\''," >$pop_name.$id.LD_window_1M.summary\n";
-				print IDSH "#cat $pop_name.$id.GLD_window_1M.list",'|sed 1,1d | awk -F " " \'function abs(v) {return v < 0 ? -v : v}BEGIN{OFS="\t"}{print abs($3-$2),$5}\''," >$pop_name.$id.GLD_window_1M.summary\n";
+				print IDSH "cat $pop_name.$id.GLD_window_1M.list",'|sed 1,1d | awk -F " " \'function abs(v) {return v < 0 ? -v : v}BEGIN{OFS="\t"}{print abs($3-$2),$5}\''," >$pop_name.$id.GLD_window_1M.summary\n";
 				close IDSH;
 
 				print PCL "sh $shpath/$pop_name.$id.LD.sh 1>$shpath/$pop_name.$id.LD.sh.o 2>$shpath/$pop_name.$id.LD.sh.e\n";
