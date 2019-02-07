@@ -96,7 +96,7 @@ Usage
 
 		All the avaliable analyses in each step: 
 			0:indexing;
-				1:read_filtering,read_mapping,recalibration,variant_calling,combine_calling,variant_filtering;
+			1:read_filtering,read_mapping,recalibration,variant_calling,combine_calling,variant_filtering;
 			3:phylogeny,admixture;
 			4:homozygosity,roh,ld,slidingwindow,sfs
 			6:mktest
