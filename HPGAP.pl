@@ -64,7 +64,11 @@ unless (defined $run_flag){
 	open MH, ">$main"; print MH "#!/bin/sh\ncd $cfg{args}{outdir}\n";
 	my $udocker_cmd="udocker run ";
 		for (my $i=0;$i<@{$cfg{args}{mount}};$i++){
-			$udocker_cmd .= "-v $cfg{args}{mount}->[$i]->{hostpath}:$cfg{args}{mount}->[$i]->{dockerpath} ";
+			if (exists $cfg{args}{mount}->[$i]->{host_tmp}){
+				$udocker_cmd .= "-v $cfg{args}{mount}->[$i]->{host_tmp}:/tmp ";
+			}elsif (exists $cfg{args}{mount}->[$i]->{host_path}){
+				$udocker_cmd .= "-v $cfg{args}{mount}->[$i]->{host_path}:$cfg{args}{mount}->[$i]->{host_path} ";
+			}
 		}
 		$udocker_cmd .= "--env=\"$cfg{args}{env}\" $cfg{args}{container} /bin/bash -c ";
 		
@@ -174,7 +178,7 @@ Author
 	please contact me if you find any bug.
 							   	
 Usage
-	HPGAP.pl --config data.yml --run <String> [-options]
+	HPGAP.pl --config <path to the .yml config file> --run <String> [-options]
 	
 	--run <String> use this option choose one of steps below (the option should not be used with --step at the same time)
 		step0_indexing
@@ -194,12 +198,19 @@ Usage
 		step4_sfs
 
 	--config path to the .yml config file
-	--step <String>	specified steps , separated by commas (e.g., "0:A;1:A,B,C,E,F,G").
-		0:indexing;
-		1:read_filtering,read_mapping,recalibration,variant_calling,combine_calling,variant_filtering;
-		3:phylogeny,admixture;
-		5:homozygosity,roh,ld,slidingwindow,sfs
+	
+	--step <String>	specified steps separated by semicolon(;). The names of analyses in each step are separated by comma (,);
+		(e.g. "0:indexing;1:read_filtering,read_mapping,recalibration,variant_calling,combine_calling,variant_filtering;3:phylogeny,admixture;4:homozygosity,roh,ld,slidingwindow,sfs").
+
+		All the avaliable analyses in each step: 
+			0:indexing;
+			1:read_filtering,read_mapping,recalibration,variant_calling,combine_calling,variant_filtering;
+			3:phylogeny,admixture;
+			4:homozygosity,roh,ld,slidingwindow,sfs
+			6:mktest
+
 	--skipsh use this to skip running bash inside the pipeline
+	
 	--help
 
 Note 

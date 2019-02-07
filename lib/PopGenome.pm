@@ -836,8 +836,8 @@ EOF
 	$report{snv1}{singletons} = `wc -l singletons.list`;
 	$report{snv1}{singletons} = $report{snv1}{singletons} - 1;
 
-	if ($cfg{step1}{high_confidence_vcf}{vcf} =~ /.gz$/) { open(IN, "gunzip -c $outpath/$cfg{step1}{high_confidence_vcf}{vcf} |") || die "can’t open pipe to $outpath/$cfg{step1}{high_confidence_vcf}{vcf}";}
-		else { open(IN, $cfg{step1}{high_confidence_vcf}{vcf}) || die "can’t open $outpath/$cfg{step1}{high_confidence_vcf}{vcf}";}
+	if ($cfg{step1}{variant_filtering}{high_confidence_vcf} =~ /.gz$/) { open(IN, "gunzip -c $outpath/$cfg{step1}{variant_filtering}{high_confidence_vcf} |") || die "can’t open pipe to $outpath/$cfg{step1}{high_confidence_vcf}{vcf}";}
+		else { open(IN, $cfg{step1}{variant_filtering}{high_confidence_vcf}) || die "can’t open $outpath/$cfg{step1}{variant_filtering}{high_confidence_vcf}";}
 	$report{snv2}{number}=0;
 	while (<IN>){
 		next if (/^#/);
@@ -845,8 +845,8 @@ EOF
 	}
 	close IN;
 
-	if ($cfg{step1}{lowld_high_confidence_vcf}{vcf} =~ /.gz$/) { open(IN, "gunzip -c $outpath/$cfg{step1}{lowld_high_confidence_vcf}{vcf} |") || die "can’t open pipe to $outpath/$cfg{step1}{lowld_high_confidence_vcf}{vcf}";}
-		else { open(IN, $cfg{step1}{lowld_high_confidence_vcf}{vcf}) || die "can’t open $outpath/$cfg{step1}{lowld_high_confidence_vcf}{vcf}";}
+	if ($cfg{step1}{variant_filtering}{lowld_high_confidence_vcf} =~ /.gz$/) { open(IN, "gunzip -c $outpath/$cfg{step1}{variant_filtering}{lowld_high_confidence_vcf} |") || die "can’t open pipe to $outpath/$cfg{step1}{variant_filtering}{lowld_high_confidence_vcf}";}
+		else { open(IN, $cfg{step1}{variant_filtering}{lowld_high_confidence_vcf}) || die "can’t open $outpath/$cfg{step1}{variant_filtering}{lowld_high_confidence_vcf}";}
 	$report{snv3}{number}=0;
 	while (<IN>){
 		next if (/^#/);
