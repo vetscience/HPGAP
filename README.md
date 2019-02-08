@@ -132,7 +132,7 @@ args:
     -
       host_path: <HPGAP path>
     -
-      host_path: <your working directory> # The rawdata should be located  inside this directory as well.
+      host_path: <your working directory>
   outdir: <your output directory> # This directory should be located within the working directory.
   ploidy: '2' # set 1 for haploid; set 2 for diploid.
 fqdata: # Set up the sample fqdata
