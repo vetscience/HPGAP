@@ -8,7 +8,7 @@ args:
     -
       host_path: <HPGAP path>
     -
-      host_path: <your working directory> # The rawdata should be located inside this directory as well.
+      host_path: <your working directory> # The rawdata should be located  inside this directory as well.
   outdir: <your output directory> # This directory should be located within the working directory.
   ploidy: '2' # set 1 for haploid; set 2 for diploid.
 fqdata: # Set up the sample fqdata
@@ -18,88 +18,88 @@ fqdata: # Set up the sample fqdata
         Flag: PE # PE (paired end) or SE (single end)
         PL: BGISEQ500 # Sequencing platform
         Phred: '33' # Phred scoring system of the fastq data
-        fq1: /home/<YourPath>/HPGAP/Example/Input/Data/1-1_r1.fastq.gz # You need to edit the path here and make it points to the fastq file (e.g. /home/foobar/Example/Input/Data/1-1_r1.fastq.gz)
-        fq2: /home/<YourPath>/HPGAP/Example/Input/Data/1-1_r2.fastq.gz
+        fq1: /<HPGAP path>/Example/Input/Data/1-1_r1.fastq.gz # You need to edit the path here and make it points to the fastq file (e.g. /home/foobar/Example/Input/Data/1-1_r1.fastq.gz)
+        fq2: /<HPGAP path>/Example/Input/Data/1-1_r2.fastq.gz
   1-2:
     rawdata:
       CL1-2:
         Flag: PE
         PL: BGISEQ500
         Phred: '33'
-        fq1: /home/<YourPath>/HPGAP/Example/Input/Data/1-2_r1.fastq.gz
-        fq2: /home/<YourPath>/HPGAP/Example/Input/Data/1-2_r2.fastq.gz
+        fq1: /<HPGAP path>/Example/Input/Data/1-2_r1.fastq.gz
+        fq2: /<HPGAP path>/Example/Input/Data/1-2_r2.fastq.gz
   14-1:
     rawdata:
       CL14-1:
         Flag: PE
         PL: BGISEQ500
         Phred: '33'
-        fq1: /home/<YourPath>/HPGAP/Example/Input/Data/14-1_r1.fastq.gz
-        fq2: /home/<YourPath>/HPGAP/Example/Input/Data/14-1_r2.fastq.gz
+        fq1: /<HPGAP path>/Example/Input/Data/14-1_r1.fastq.gz
+        fq2: /<HPGAP path>/Example/Input/Data/14-1_r2.fastq.gz
   17-1:
     rawdata:
       CL17-1:
         Flag: PE
         PL: BGISEQ500
         Phred: '33'
-        fq1: /home/<YourPath>/HPGAP/Example/Input/Data/17-1_r1.fastq.gz
-        fq2: /home/<YourPath>/HPGAP/Example/Input/Data/17-1_r2.fastq.gz
+        fq1: /<HPGAP path>/Example/Input/Data/17-1_r1.fastq.gz
+        fq2: /<HPGAP path>/Example/Input/Data/17-1_r2.fastq.gz
   26-1:
     rawdata:
       CL26-1:
         Flag: PE
         PL: BGISEQ500
         Phred: '33'
-        fq1: /home/<YourPath>/HPGAP/Example/Input/Data/26-1_r1.fastq.gz
-        fq2: /home/<YourPath>/HPGAP/Example/Input/Data/26-1_r2.fastq.gz
+        fq1: /<HPGAP path>/Example/Input/Data/26-1_r1.fastq.gz
+        fq2: /<HPGAP path>/Example/Input/Data/26-1_r2.fastq.gz
   32-1:
     rawdata:
       CL32-1:
         Flag: PE
         PL: BGISEQ500
         Phred: '33'
-        fq1: /home/<YourPath>/HPGAP/Example/Input/Data/32-1_r1.fastq.gz
-        fq2: /home/<YourPath>/HPGAP/Example/Input/Data/32-1_r2.fastq.gz
+        fq1: /<HPGAP path>/Example/Input/Data/32-1_r1.fastq.gz
+        fq2: /<HPGAP path>/Example/Input/Data/32-1_r2.fastq.gz
   35-1:
     rawdata:
       CL35-1:
         Flag: PE
         PL: BGISEQ500
         Phred: '33'
-        fq1: /home/<YourPath>/HPGAP/Example/Input/Data/35-1_r1.fastq.gz
-        fq2: /home/<YourPath>/HPGAP/Example/Input/Data/35-1_r2.fastq.gz
+        fq1: /<HPGAP path>/Example/Input/Data/35-1_r1.fastq.gz
+        fq2: /<HPGAP path>/Example/Input/Data/35-1_r2.fastq.gz
   44-1:
     rawdata:
       CL44-1:
         Flag: PE
         PL: BGISEQ500
         Phred: '33'
-        fq1: /home/<YourPath>/HPGAP/Example/Input/Data/44-1_r1.fastq.gz
-        fq2: /home/<YourPath>/HPGAP/Example/Input/Data/44-1_r2.fastq.gz
+        fq1: /<HPGAP path>/Example/Input/Data/44-1_r1.fastq.gz
+        fq2: /<HPGAP path>/Example/Input/Data/44-1_r2.fastq.gz
   49-1:
     rawdata:
       CL49-1:
         Flag: PE
         PL: BGISEQ500
         Phred: '33'
-        fq1: /home/<YourPath>/HPGAP/Example/Input/Data/49-1_r1.fastq.gz
-        fq2: /home/<YourPath>/HPGAP/Example/Input/Data/49-1_r2.fastq.gz
+        fq1: /<HPGAP path>/Example/Input/Data/49-1_r1.fastq.gz
+        fq2: /<HPGAP path>/Example/Input/Data/49-1_r2.fastq.gz
   56-1:
     rawdata:
       CL56-1:
         Flag: PE
         PL: BGISEQ500
         Phred: '33'
-        fq1: /home/<YourPath>/HPGAP/Example/Input/Data/56-1_r1.fastq.gz
-        fq2: /home/<YourPath>/HPGAP/Example/Input/Data/56-1_r2.fastq.gz
+        fq1: /<HPGAP path>/Example/Input/Data/56-1_r1.fastq.gz
+        fq2: /<HPGAP path>/Example/Input/Data/56-1_r2.fastq.gz
   56-2:
     rawdata:
       CL56-2:
         Flag: PE
         PL: BGISEQ500
         Phred: '33'
-        fq1: /home/<YourPath>/HPGAP/Example/Input/Data/56-2_r1.fastq.gz
-        fq2: /home/<YourPath>/HPGAP/Example/Input/Data/56-2_r2.fastq.gz
+        fq1: /<HPGAP path>/Example/Input/Data/56-2_r1.fastq.gz
+        fq2: /<HPGAP path>/Example/Input/Data/56-2_r2.fastq.gz
 population: 
   1-1: # Sample id 
     'presumed population': South # Here, you can assign population labels for your samples (eg. South and North Populations)
@@ -128,10 +128,10 @@ ref:
   db:
     Cs-c1: # label of reference 1
       name: Cs-c1 # label of reference 1
-      path: /home/<YourPath>/HPGAP/Example/Input/Cs-c1.example.fa
+      path: /<HPGAP path>/Example/Input/Cs-c1.example.fa
     Cs-k2: # label of reference 2
       name: Cs-k2 # label of reference 2
-      path: /home/<YourPath>/HPGAP/Example/Input/Cs-k2.example.fa
+      path: /<HPGAP path>/Example/Input/Cs-k2.example.fa
 step1: # parameter settings for step1
   variant_filtering:
     indel: 'QD < 2.0 || FS > 200.0 || ReadPosRankSum < -20.0' # The settings for indel filtering. To modify that, please check the manual of GATK4
@@ -147,7 +147,7 @@ step4: # parameter settings for step4
     neut_simulation_times: '100' # the number of simulation for generating simulated neutral data
     soft_simulation_times: '100' # the number of simulation for generating simulated soft sweep data
   slidingwindow:
-    gff: /home/<YourPath>/HPGAP/Example/Input/clonorchis_sinensis.example.gff # the gff file for the species
+    gff: /<HPGAP path>/Example/Input/clonorchis_sinensis.example.gff # the gff file for the species
     scaffold_length_cutoff: '5000' # only analyse the scaffolds with length larger than the cutoff
     scaffold_number_limit: '10000' # the maximum number of scaffolds
     snpeff_species: Clonorchis_sinensis_henan # the species name in the snpeff database 
