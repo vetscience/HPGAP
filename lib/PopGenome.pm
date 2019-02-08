@@ -674,7 +674,7 @@ sub COMBINE_CALLING{
 	## First, merge all the gvcf results, then perform GenotypeGVCFs
 	my $sample_gvcfs = "";
 	foreach my $sample (keys %samplelist){
-		$sample_gvcfs .= "	-V $outpath/read_mapping.$cfg{ref}{choose}/$sample/$sample.HC.gvcf.gz\\\n";
+		$sample_gvcfs .= "	-V $outpath/read_mapping.$cfg{ref}{choose}/$sample/$sample.HC.gvcf.gz \\\n";
 	}
 	print SH "#!/bin/sh\ncd $outpath\n";
 	# Consider replace CombineGCVFs with GenomicsDBimport
