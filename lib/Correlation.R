@@ -1,6 +1,5 @@
 args = commandArgs(trailingOnly=TRUE)
 
-args[2]="/home/darcy/PopGen_WorkFlow/Example/05.IntraPopulation/Slidingwindow/final.South.allstat.txt"
 setwd=args[1]
 input=args[2]
 
