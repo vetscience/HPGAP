@@ -1709,7 +1709,7 @@ sub SFS{
 	print SH "parallel -j 40 < $shpath/SFS.cmd1.list\n";
 	close SH;
 
-	#`sh $shpath/SFS.sh 1>$shpath/SFS.sh.o 2>$shpath/SFS.sh.e` unless ($skipsh ==1);
+	`sh $shpath/SFS.sh 1>$shpath/SFS.sh.o 2>$shpath/SFS.sh.e` unless ($skipsh ==1);
 	
 	foreach my $pop_name (keys %pop){
 		open SH, ">$shpath/$pop_name.Simulation.sh";
