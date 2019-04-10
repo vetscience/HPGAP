@@ -49,7 +49,7 @@ chmod uog+x ~/miniconda3/bin/proot*
 echo "###########################"
 echo "# Installing containers ..."
 udocker pull walkbay3000/hpgap:latest
-udocker create --name=HPGAP_c1 walkboy3000/hpgap:latest
+udocker create --name=HPGAP_c1 walkbay3000/hpgap:latest
 ~~~
 
 
