@@ -16,8 +16,9 @@ The workflow for analysis using `HPGAP` consists of five basic parts. 1) Variant
 
 To install the pipeline, just need to clone the git directory and install udocker and miniconda with the following instructions.
 
-~~~bash
+### Installing conda and git
 
+~~~bash
 wget https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh
 echo -e "\nyes\n\nyes\n" | bash Miniconda3-latest-Linux-x86_64.sh
 export PATH=~/miniconda3/bin:$PATH
@@ -30,27 +31,58 @@ echo "########################"
 echo "# Installing git ..."
 conda install -c conda-forge git=2.20.1
 git clone https://github.com/vetscience/HPGAP.git # We will refer to the path that you clone the git repository as HPGAP path (eg. /home/foobar/HPGAP)
+~~~
 
+### Installing udocker
+
+Udocker requires either **pycurl** or the **curl** to download both the binaries and/or pull containers from repositories and **tar** to unpackage binaries and libraries. Please check https://github.com/indigo-dc/udocker/blob/master/doc/installation_manual.md for more details of installing udocker.
+
+~~~bash
 echo "########################"
 echo "# Installing udocker ..."
-conda install -y -p ~/miniconda3 udocker==1.1.1
-rm -f udocker.py
-wget https://raw.githubusercontent.com/indigo-dc/udocker/7f6975c19c63c3d65ec6256c7cf5b2369d5c115d/udocker.py
-sed 's/proot_killonexit = True/proot_killonexit = False/1' udocker.py > ~/miniconda3/bin/udocker.py
-rm -f udocker.py
-chmod uog+x ~/miniconda3/bin/udocker.py
-sed 's/#!\/bin\/bash/#!\/bin\/bash\nexport CONDA_PREFIX=~\/miniconda3/1' ~/miniconda3/bin/udocker > udocker
-chmod uog+x udocker
-mv udocker ~/miniconda3/bin
-wget https://github.com/proot-me/proot-static-build/raw/master/static/proot-x86_64 -P ~/miniconda3/bin
-wget https://github.com/proot-me/proot-static-build/raw/master/static/proot-x86 -P ~/miniconda3/bin
-chmod uog+x ~/miniconda3/bin/proot*
+curl https://download.ncg.ingrid.pt/webdav/udocker/udocker-1.1.2.tar.gz > udocker-tarball.tgz
+export UDOCKER_TARBALL=$(pwd)/udocker-tarball.tgz
+tar xzvf $UDOCKER_TARBALL udocker
+./udocker install
+mv ./udocker $HOME/bin/   # move the executable to your preferred location for binaries
 
-echo "###########################"
-echo "# Installing containers ..."
-udocker pull walkbay3000/hpgap:latest
-udocker create --name=HPGAP_c1 walkbay3000/hpgap:latest
+wget https://github.com/proot-me/proot-static-build/raw/master/static/proot-x86_64 -P $HOME/bin
+wget https://github.com/proot-me/proot-static-build/raw/master/static/proot-x86 -P $HOME/bin
+chmod uog+x $HOME/proot*
 ~~~
+
+### Creating a udocker container
+
+~~~bash
+echo "###########################"
+echo "# Setting up container ..."
+udocker pull walkboy3000/hpgap:latest
+udocker create --name=HPGAP_c1 walkboy3000/hpgap:latest
+~~~
+
+### Installing SNPEff database
+
+After you create a udocker container, you can run these commands to install a customized database. For more details, please check <http://snpeff.sourceforge.net/SnpEff_manual.html#databases>.
+
+* First, use any text editor to create a bash script (e.g. run.sh), then copy, paste and edit the following commands into this file. Pleae make sure the source files (fasta and gff files) are not **soft linked**.
+
+```bash
+cd /root/miniconda3/share/snpeff-4.3k-0
+#dbname is the preferred name of the SNPEff database.
+dbname="Clonorchis_sinensis_henan" # example
+mkdir -p "data/$dbname"
+cp <the path of genome fasta file> data/$dbname/sequences.fa
+cp <the path of gff file> data/$dbname/genes.gff
+echo "$dbname.genome : $dbname" >> snpEff.config
+snpEff build -gff3 -v $dbname
+cd -
+```
+
+* Second, run the bash script (e.g. run.sh) with udocker to create the database on the container . If the source files (fasta and gff files are not located in your current working directory, please mount the directory as well.
+
+```bash
+udocker run -v <your host working directory>:<your host working directory> -v <the directory of the source files>:<the directory of the source files> --env="PATH=/usr/local/bin/:/usr/bin:/bin/" HPGAP_c1 /bin/bash -c 'sh run.sh'
+```
 
 
 
@@ -62,7 +94,7 @@ To run the pipeline, first, you need to prepare the configuration file (see "set
 udocker run -v <HPGAP path>:<HPGAP path> -v <your host working directory>:<your host working directory> --env="PATH=<HPGAP path>:/usr/local/bin/:/usr/bin:/bin/" HPGAP_c1 /bin/bash -c 'HPGAP.pl --config <the path to your configuration file>'
 ~~~
 
-This command will generate an HPGAP.main.sh in your working directory. You should first try to run the HPGAP.main.sh step by step. 
+This command will generate an HPGAP.main.sh in your working directory. You should first try to run the HPGAP.main.sh step by step.
 
 
 
