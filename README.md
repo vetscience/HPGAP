@@ -345,6 +345,15 @@ step4: # parameter settings for step4
 ## Structure of output directories
 
 ```bash
+00.INDEXING
+  ├── [Reference genome ID].dict #Dictionary file of the genome
+  ├── [Reference genome ID].fa #FASTA file of the genome
+  ├── [Reference genome ID].fa.amb #text file recording the "N" in the reference genome 
+  ├── [Reference genome ID].fa.ann #text file recording reference sequences, name, length
+  ├── [Reference genome ID].fa.bwt #binary file of the Burrows-Wheeler transformed sequence
+  ├── [Reference genome ID].fa.fai #fasta index file
+  ├── [Reference genome ID].fa.pac #binary file of packaged sequence 
+  └── [Reference genome ID].fa.sa #binary file of suffix array index.
 01.QualityControl
   ├── Combined
   │   ├── high_confidence_prunned.vcf.gz #VCF file of SNPs with low LD
