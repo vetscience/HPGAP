@@ -1,9 +1,13 @@
 # HPGAP
-Helminth Population Genomic Analysis Pipeline
+Helminth Population Genomic Analysis Pipeline (`HPGAP`)  overcomes the difficulties in variant calling and is able to explore key aspects centering the population genetics of helminths, including defining population structures, estimating reproductive modes and identifying loci under local adaptation. 
 
-This repo contains the implementation for `HPGAP` , along with its associated support scripts, libraries and example population genomic data. You can also check the installed programs and packages with the DockerFile.
+`HPGAP` automates six key bioinformatic components in population genomic analysis using customised R, Perl, Python and Unix shell scripts. These scripts and associated programs were then packaged into a platform independent image to enable setting up an identical system environment.
 
-The workflow for analysis using `HPGAP` consists of five basic parts. 1) Variant calling; 2) Sample filtering; 3) Inferring genetic relationships; 4) Intra-population analysis; 5) identifying loci under nature selection. 
+This repo contains the implementation for `HPGAP`, along with its associated support scripts, libraries and example population genomic data. You can also check the installed programs and packages with the DockerFile.
+
+The workflow for analysis using `HPGAP` consists of five basic parts. 1) Variant calling; 2) Sample filtering; 3) Inferring genetic relationships; 4) Intra-population analysis; 5) Identifying loci under natural selection.
+
+
 
 ## Dependencies
 
@@ -48,7 +52,7 @@ mv ./udocker $HOME/bin/   # move the executable to your preferred location for b
 
 wget https://github.com/proot-me/proot-static-build/raw/master/static/proot-x86_64 -P $HOME/bin
 wget https://github.com/proot-me/proot-static-build/raw/master/static/proot-x86 -P $HOME/bin
-chmod uog+x $HOME/proot*
+chmod uog+x $HOME/bin/proot*
 ~~~
 
 ### Creating a udocker container
@@ -62,7 +66,8 @@ udocker create --name=HPGAP_c1 walkboy3000/hpgap:latest
 
 ### Installing SNPEff database
 
-After you create a udocker container, you can run these commands to install a customized database. For more details, please check <http://snpeff.sourceforge.net/SnpEff_manual.html#databases>.
+
+After you create a udocker container and decide the preferred genome, you can run these commands to install the database for SNPEFF into the container and also revise the path of gff file for the following steps. For more details, please check <http://snpeff.sourceforge.net/SnpEff_manual.html#databases>.
 
 * First, use any text editor to create a bash script (e.g. run.sh), then copy, paste and edit the following commands into this file. Pleae make sure the source files (fasta and gff files) are not **soft linked**.
 
@@ -78,7 +83,7 @@ snpEff build -gff3 -v $dbname
 cd -
 ```
 
-* Second, run the bash script (e.g. run.sh) with udocker to create the database on the container . If the source files (fasta and gff files are not located in your current working directory, please mount the directory as well.
+* Second, run the bash script (e.g. run.sh) with udocker to create the database on the container . Please move your source files (fasta and gff files) to your working directory. If the source files (fasta and gff files are not located in your current working directory, please mount the directory as well). 
 
 ```bash
 udocker run -v <your host working directory>:<your host working directory> -v <the directory of the source files>:<the directory of the source files> --env="PATH=/usr/local/bin/:/usr/bin:/bin/" HPGAP_c1 /bin/bash -c 'sh run.sh'
@@ -88,7 +93,9 @@ udocker run -v <your host working directory>:<your host working directory> -v <t
 
 ## Run the pipeline
 
-To run the pipeline, first, you need to prepare the configuration file (see "setting the configuration file"). After that, you can use the following command to generate a "HPGAP.main.sh", which contains the specific command lines for running each step of the analysis.
+To run the pipeline, first, you need to prepare the configuration file (see "setting the configuration file"). After that, you can use the following command to generate a "HPGAP.main.sh", which contains the specific command lines for running each step of the analysis. 
+
+**Warning**: HPGAP.main.sh and allcfg.yml should be regenerated if you change the configuration file.
 
 ~~~bash
 udocker run -v <HPGAP path>:<HPGAP path> -v <your host working directory>:<your host working directory> --env="PATH=<HPGAP path>:/usr/local/bin/:/usr/bin:/bin/" HPGAP_c1 /bin/bash -c 'HPGAP.pl --config <the path to your configuration file>'
@@ -116,10 +123,10 @@ Usage
 		step3_phylogeny
 		step3_admixture
 		step4_homozygosity
-		step4_roh
-		step4_ld
+		step4_roh (run of homozygosity)
+		step4_ld (linkage disequilibrium)
 		step4_slidingwindow
-		step4_sfs
+		step4_sfs (snp frequency spectrum)
 
 	--config path to the .yml config file
 	
@@ -128,10 +135,10 @@ Usage
 
 		All the avaliable analyses in each step: 
 			0:indexing;
-			1:read_filtering,read_mapping,recalibration,variant_calling,combine_calling,variant_filtering;
+				  1:read_filtering,read_mapping,recalibration,variant_calling,combine_calling,variant_filtering;
+			2:relatedness
 			3:phylogeny,admixture;
 			4:homozygosity,roh,ld,slidingwindow,sfs
-			6:mktest
 
 	--skipsh use this to skip running bash inside the pipeline
 	
@@ -149,16 +156,39 @@ USAGE
 
 
 
+## Required Input
+
+### step1 (from read_filtering to variant calling):
+* FASTQ files of each sample
+* FASTA file of all the reference sequences. All reference FASTA sequences should be ended with .fa. 
+
+### step2 (relatedness among samples)
+
+* HPGAP generated or custom VCF file (including variant information of all the samples)
+
+### step3 (phylogeny and admixture)
+
+* HPGAP generated or custom VCF file (including variant information of all the samples)
+
+### step4 (homozygosity, roh, ld and sliding window analysis within a population)
+
+* HPGAP generated or custom VCF file (including variant information of all the samples)
+* GFF file of the reference genome
+
+
+
 ## Setting the configuration file
 
 Here is an example configuration file,  you can edit the paths and values within the file and use that for the example analysis.
+
+Warning: YAML file is sensitive to indentis and colon of keys should be followed by one space. Please follow the indents and spaces of the example configuration file carefully.
 
 ~~~yaml
 ---
 args:
   container: HPGAP_c1 # Specify the name of the hpgap container
   env: PATH=/root/admixture_linux-1.3.0/:/root/gatk:/root/miniconda3/bin:/usr/local/sbin:/usr/local/bin/:/usr/sbin:/usr/bin:/sbin:/bin:/sbin:/bin:<HPGAP path>:<HPGAP path>/lib:<HPGAP path>/Tools # Set up the $PATH in the container. The paths to git cloned directory and the lib and Tools directories as well.
-  mount: # Set up the mapping to mount your host directories to the directories of the container. We recommend you to create a local tmp directory (e.g. /home/foobar/tmp) and mount it to the container.
+  mount: # Set up the mapping to mount your host directories to the directories of the container. The directory including the rawdata should be mounted as well. We recommend you to create a local tmp directory (e.g. /home/foobar/tmp) and mount it to the container. 
     -
       host_tmp: <your tmp directory >
     -
@@ -170,7 +200,7 @@ args:
 fqdata: # Set up the sample fqdata
   1-1: # Sample id
     rawdata:
-      CL1-1: #library id
+      CL1-1: #library id. When you have more than one library, plese put them together under the same sample ID. 
         Flag: PE # PE (paired end) or SE (single end)
         PL: BGISEQ500 # Sequencing platform
         Phred: '33' # Phred scoring system of the fastq data
@@ -310,3 +340,65 @@ step4: # parameter settings for step4
     windowsize: '5000' # window size for scanning the whole genome in a sliding window manner
 ~~~
 
+
+
+## Structure of output directories
+
+```bash
+01.QualityControl
+  ├── Combined
+  │   ├── high_confidence_prunned.vcf.gz #VCF file of SNPs with low LD
+  │   ├── high_confidence.vcf.gz #VCF file of the SNPs with complete infomation on all the samples
+  │   ├── PASS.SNP.DP.vcf.gz #VCF file of filtered SNPs with enough read depth
+  │   ├── singletons.list #List of SNP singletons
+  │   └── snv.summary.txt #Summary of variants
+  ├── read_filtering
+  │   ├── [Sample ID]
+  │   │   ├── [Library ID + Sample ID]_1.filt.fq.gz # filtered read 1
+  │   │   ├── [Library ID + Sample ID]_2.filt.fq.gz # filtered read 2
+  ├── read_mapping.[of reference genome ID]
+      ├── [Sample ID]
+          ├── [Sample ID].sorted.markdup.bam #Duplication marked read mapping BAM file
+          └── bam.stats.txt #Summary of the BAM file
+
+03.GeneticRelationships
+  ├── Admixture
+  │   ├── CV.error.txt # Cross validation error of each K value
+  │   ├── high_confidence_prunned.vcf.gz # VCF file used for this analysis
+  │   ├── K[K value].png #Admixture graph
+  └── Phylogeny
+      ├── plink_data.fasta # FASTA file of concatenated SNPs
+      └── result2.tre # The output phylogeny
+
+05.IntraPopulation
+├── LD  #Linkage disequilibrium
+│   ├── South.GLD.png # LD decay graph 
+│   ├── South.scf00001.GLD_window_1M.summary #Average LD on each distance
+│   └── South.SNP.vcf.gz #VCF file of the SNPs used for this analysis
+├── ROH	#Run of Homozygosity
+│   ├── South.hom.indiv #Average length of homozygous regions of each individual 
+│
+├── SFS
+│   ├── [Population name]
+│   │   ├── EstimatedNe.list #Estimated population size of each run
+│   │   ├── [nonsyn_sfs|syn_sfs|total_sfs] 
+│   │   │   └── fastsimcoal2
+│   │   │       └── South_MSFS.obs #SNP frequency spectrum
+│   │   ├── observedFVFiles
+│   │   │   └── [Scaffold ID].[Population ID].SNP.preds # predicted loci under natural selection
+│   │   ├── trainingSets
+│   │   │   ├── hard.fvec #simulated data of hard sweep loci
+│   │   │   ├── linkedHard.fvec #simulated data of regions linking to hard sweep loci
+│   │   │   ├── linkedSoft.fvec #simulated data of regions linking to soft sweep loci
+│   │   │   ├── neut.fvec #simulated data of neutral loci
+│   │   │   └── soft.fvec #simulated data of soft sweep loci
+└── Slidingwindow
+    ├── final.[population ID].allstat.txt # Statistics of each sliding window
+    ├── snpEff.nonsyn.vcf.gz #VCF file of nonsynnonymous SNPs
+    ├── snpEff.syn.vcf.gz #VCF file of synnonymous SNPs
+    ├── snpEff.vcf.gz #functional annotated VCF file
+    ├── [population ID].snpEff.nonsyn.pi.list #polymorphism of synnonymous SNPs
+    ├── [population ID].snpEff.syn.pi.list #polymorphismfile of nonsynnonymous SNPs
+
+
+```
