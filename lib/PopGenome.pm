@@ -25,7 +25,7 @@ sub INDEXING{
 	
 	my $outpath = "$cfg{args}{outdir}/00.INDEXING/"; 
 	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";} 
-	my $shpath = "$cfg{args}{outdir}/NewShell/00.INDEXING";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/00.INDEXING";
 	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
 	
 	open SH, ">$shpath/index.sh";
@@ -81,7 +81,7 @@ sub DATA_FILTERING{
 	
 	my $outpath = "$cfg{args}{outdir}/01.QualityControl/read_filtering/"; 
 	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";} 
-	my $shpath = "$cfg{args}{outdir}/NewShell/01.QualityControl/read_filtering/";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/01.QualityControl/read_filtering/";
 	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
 
 	my %samplelist = %{$cfg{fqdata}};
@@ -131,7 +131,7 @@ sub MAPPING{
 	foreach my $temp_ref(keys %{$cfg{ref}{db}}){
 		my $outpath = "$cfg{args}{outdir}/01.QualityControl/read_mapping.$temp_ref"; 
 		if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";} 
-		my $shpath = "$cfg{args}{outdir}/NewShell/01.QualityControl/read_mapping.$temp_ref";
+		my $shpath = "$cfg{args}{outdir}/PipelineScripts/01.QualityControl/read_mapping.$temp_ref";
 		if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
 
 		my $reference = $cfg{ref}{db}{$temp_ref}{path};	
@@ -446,7 +446,7 @@ sub CALIBRATION{
 	my $reference = $cfg{ref}{db}{$cfg{ref}{choose}}{path};
 	my $outpath = "$cfg{args}{outdir}/01.QualityControl/read_mapping.$cfg{ref}{choose}"; 
 	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";} 
-	my $shpath = "$cfg{args}{outdir}/NewShell/01.QualityControl/read_mapping.$cfg{ref}{choose}";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/01.QualityControl/read_mapping.$cfg{ref}{choose}";
 	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
 
 	open CL, ">$shpath/cmd_step1d.list";
@@ -550,7 +550,7 @@ sub VARIANT_CALLING{
 	my $reference = $cfg{ref}{db}{$cfg{ref}{choose}}{path};
 	my $outpath = "$cfg{args}{outdir}/01.QualityControl/read_mapping.$cfg{ref}{choose}"; 
 	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";} 
-	my $shpath = "$cfg{args}{outdir}/NewShell/01.QualityControl/read_mapping.$cfg{ref}{choose}";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/01.QualityControl/read_mapping.$cfg{ref}{choose}";
 	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
 
 	open CL, ">$shpath/cmd_step1e.list";
@@ -666,7 +666,7 @@ sub COMBINE_CALLING{
 	my $reference = $cfg{ref}{db}{$cfg{ref}{choose}}{path};
 	my $outpath = "$cfg{args}{outdir}/01.QualityControl/"; 
 	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";} 
-	my $shpath = "$cfg{args}{outdir}/NewShell/01.QualityControl/Combined";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/01.QualityControl/Combined";
 	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
 
 	open SH, ">$shpath/final.calling.sh";
@@ -708,7 +708,7 @@ sub VARIANT_FILTERING{
 	my %cfg = %{$yaml->[0]};
 	
 	my $outpath = "$cfg{args}{outdir}/01.QualityControl/Combined";
-	my $shpath = "$cfg{args}{outdir}/NewShell/01.QualityControl/step1_variant_filtering";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/01.QualityControl/step1_variant_filtering";
 	my $reference = $cfg{ref}{db}{$cfg{ref}{choose}}{path};
 	my $genome=LOADREF($reference);
 
@@ -876,7 +876,7 @@ sub VARIANT_COMPARISON{
 	my %cfg = %{$yaml->[0]};
 
 	my $outpath = "$cfg{args}{outdir}/01.QualityControl/Comparison";
-	my $shpath = "$cfg{args}{outdir}/NewShell/01.QualityControl/Comparison";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/01.QualityControl/Comparison";
 	my $reference = $cfg{ref}{db}{$cfg{ref}{choose}}{path};
 	my $gzvcf1 = $cfg{step1}{variant_filtering}{vcf};
 	my $gzvcf2 = "$cfg{args}{outdir}/Input/c.briggsae_snps.vcf.gz";
@@ -970,7 +970,7 @@ sub RELATEDNESS{
 	my $yaml = YAML::Tiny->read( $yml_file );
 	my %cfg = %{$yaml->[0]};
 	my $outpath = "$cfg{args}{outdir}/02.SampleFiltering/Relatedness";
-	my $shpath = "$cfg{args}{outdir}/NewShell/02.SampleFiltering/Relatedness";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/02.SampleFiltering/Relatedness";
 	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
 	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
 	
@@ -1008,7 +1008,7 @@ sub PHYLOGENY{
 	my $yaml = YAML::Tiny->read( $yml_file );
 	my %cfg = %{$yaml->[0]};
 	my $outpath = "$cfg{args}{outdir}/03.GeneticRelationships/Phylogeny/";
-	my $shpath = "$cfg{args}{outdir}/NewShell/03.GeneticRelationships/Phylogeny/";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/03.GeneticRelationships/Phylogeny/";
 	my $gzvcf = $cfg{step1}{variant_filtering}{lowld_high_confidence_vcf};
 	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
 	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
@@ -1037,7 +1037,7 @@ sub ADMIXTURE{
 	my $yaml = YAML::Tiny->read( $yml_file );
 	my %cfg = %{$yaml->[0]};
 	my $outpath = "$cfg{args}{outdir}/03.GeneticRelationships/Admixture/";
-	my $shpath = "$cfg{args}{outdir}/NewShell/03.GeneticRelationships/Admixture/";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/03.GeneticRelationships/Admixture/";
 	my $plink_data = $cfg{step1}{variant_filtering}{plink_data};
 	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
 	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
@@ -1094,7 +1094,7 @@ sub DIVERGENCE{
 	my $yaml = YAML::Tiny->read( $yml_file );
 	my %cfg = %{$yaml->[0]};
 	my $outpath = "$cfg{args}{outdir}/04.InterPopulation/Divergence/";
-	my $shpath = "$cfg{args}{outdir}/NewShell/04.InterPopulation/Divergence/";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/04.InterPopulation/Divergence/";
 
 	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
 	my $gzvcf = $cfg{step1}{variant_filtering}{vcf};
@@ -1173,7 +1173,7 @@ sub HOMOZYGOSITY{
 	my $yaml = YAML::Tiny->read( $yml_file );
 	my %cfg = %{$yaml->[0]};
 	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/Homozygosity/";
-	my $shpath = "$cfg{args}{outdir}/NewShell/05.IntraPopulation/Homozygosity/";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/05.IntraPopulation/Homozygosity/";
 
 	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
 	my $gzvcf = $cfg{step1}{variant_filtering}{high_confidence_vcf};
@@ -1216,7 +1216,7 @@ sub ROH{
 	my $yaml = YAML::Tiny->read( $yml_file );
 	my %cfg = %{$yaml->[0]};
 	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/ROH/";
-	my $shpath = "$cfg{args}{outdir}/NewShell/05.IntraPopulation/ROH/";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/05.IntraPopulation/ROH/";
 	my $gzvcf = $cfg{step1}{variant_filtering}{high_confidence_vcf};
 	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
 
@@ -1280,7 +1280,7 @@ sub LD{
 	my $yaml = YAML::Tiny->read( $yml_file );
 	my %cfg = %{$yaml->[0]};
 	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/LD/";
-	my $shpath = "$cfg{args}{outdir}/NewShell/05.IntraPopulation/LD/";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/05.IntraPopulation/LD/";
 
 	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
 	my $gzvcf = $cfg{step1}{variant_filtering}{high_confidence_vcf};
@@ -1396,7 +1396,7 @@ sub SLIDINGWINDOW{
 	my $yaml = YAML::Tiny->read( $yml_file );
 	my %cfg = %{$yaml->[0]};
 	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/Slidingwindow/";
-	my $shpath = "$cfg{args}{outdir}/NewShell/05.IntraPopulation/Slidingwindow/";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/05.IntraPopulation/Slidingwindow/";
 
 	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
 	my $gzvcf = $cfg{step1}{variant_filtering}{vcf};
@@ -1647,7 +1647,7 @@ sub SFS{
 	my $yaml = YAML::Tiny->read( $yml_file );
 	my %cfg = %{$yaml->[0]};
 	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/SFS/";
-	my $shpath = "$cfg{args}{outdir}/NewShell/05.IntraPopulation/SFS/";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/05.IntraPopulation/SFS/";
 	my $slidingwindowpath = "$cfg{args}{outdir}/05.IntraPopulation/Slidingwindow/";
 
 	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
@@ -1804,7 +1804,7 @@ sub MKTEST{
 	my $yaml = YAML::Tiny->read( $yml_file );
 	my %cfg = %{$yaml->[0]};
 	my $outpath = "$cfg{args}{outdir}/05.Selection/MKtest/";
-	my $shpath = "$cfg{args}{outdir}/NewShell/05.Selection/MKtest/";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/05.Selection/MKtest/";
 
 	#my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
 	my $gzvcf = $cfg{step1}{variant_filtering}{high_confidence_vcf};
@@ -1900,7 +1900,7 @@ sub FSTOUTLIERS{
 	my $yaml = YAML::Tiny->read( $yml_file );
 	my %cfg = %{$yaml->[0]};
 	my $outpath = "$cfg{args}{outdir}/06.Selection/Fst_outliers/";
-	my $shpath = "$cfg{args}{outdir}/NewShell/06.Selection/Fst_outliers/";
+	my $shpath = "$cfg{args}{outdir}/PipelineScripts/06.Selection/Fst_outliers/";
 
 	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
 	my $gzvcf = $cfg{step1}{variant_filtering}{vcf};
