@@ -232,11 +232,11 @@ sub READ_REPORT{
 
 	}
 	
-	foreach $meric (keys %rs){
-		foreach $sample_id(keys %{$rs{$meric}}){
+	foreach my $meric (keys %rs){
+		foreach my $sample_id(keys %{$rs{$meric}}){
 			my $temp_top = 0;
 			my $temp_top_name = "";
-			foreach $temp_ref(keys %{$rs{$meric}{$sample_id}}){
+			foreach my $temp_ref(keys %{$rs{$meric}{$sample_id}}){
 				if ($rs{$meric}{$sample_id}{$temp_ref} >= $temp_top){
 					$temp_top = $rs{$meric}{$sample_id}{$temp_ref};
 					$temp_top_name = $temp_ref;
@@ -248,7 +248,7 @@ sub READ_REPORT{
 
 	my $temp_top = 0;
 	my $temp_top_name = "";
-	foreach $temp_ref(keys %rs_ref){
+	foreach my $temp_ref(keys %rs_ref){
 		if ($rs_ref{$temp_ref}>$temp_top){
 			$temp_top = $rs_ref{$temp_ref};
 			$temp_top_name = $temp_ref;
