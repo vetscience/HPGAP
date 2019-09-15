@@ -424,7 +424,7 @@ sub READ_REPORT{
 		print CL "Rscript $shpath/$sample.step1c.R 1>$shpath/$sample.step1c.R.o 2>$shpath/$sample.step1c.R.e\n";
 	}
 	close CL;
-	print SH "sh -c 'parallel -j $cfg{args}{threads} < $shpath/cmd_step1c.list'\n";
+	print SH "sh -c 'parallel -j 10 < $shpath/cmd_step1c.list'\n";
 	close SH;
 	open MH, ">>$main"; print MH "docker run -ti  -v $mountpath --rm $image sh -c 'sh $shpath/Read_report.sh 1>$shpath/Read_report.sh.o 2>$shpath/Read_report.sh.e'\n";close MH;
 }
