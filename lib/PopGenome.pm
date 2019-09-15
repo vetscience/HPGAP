@@ -202,6 +202,7 @@ sub READ_REPORT{
 
 		open SH, ">$shpath/read_report.sh";	
 		print SH "Rscript --vanilla $Bin/lib/ReadSummary.R $report_outpath $report_sample_outpath $temp_ref.Summary.xls\n";
+		`sh $shpath/read_report.sh 1>$shpath/read_report.sh.o 2>$shpath/read_report.sh.e`;
 	}
 	# create this yaml object
 	$yaml = YAML::Tiny->new( \%cfg );
