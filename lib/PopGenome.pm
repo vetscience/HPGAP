@@ -181,6 +181,8 @@ sub READ_REPORT{
 	my %cfg = %{$yaml->[0]};
 	my %samplelist = %{$cfg{fqdata}};
 
+	my %rs;
+	my %rs_ref;
 	foreach my $temp_ref(keys %{$cfg{ref}{db}}){
 		my $outpath = "$cfg{args}{outdir}/01.QualityControl/read_mapping.$temp_ref"; 
 		if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";} 
@@ -207,7 +209,55 @@ sub READ_REPORT{
 		print SH "#!/bin/sh\ncd $report_outpath\n";
 		print SH "Rscript --vanilla $Bin/lib/ReadSummary.R $report_outpath $report_sample_outpath $temp_ref.Summary.xls\n";
 		`sh $shpath/read_report.sh 1>$shpath/read_report.sh.o 2>$shpath/read_report.sh.e`;
+
+		open RS, "$temp_ref.Summary.xls";
+		<RS>;
+		while(<RS>){
+			my @a = split /\t/;
+			my $sample_id = $a[0];
+			my $mapped_rate = $a[7];
+			my $match_rate = 1 - $a[8];
+			my $paired_rate = $a[9];
+			my $cover_area = $a[12];
+
+			$rs{mapped_rate}{$sample_id}{$temp_ref} = $mapped_rate;
+			$rs{match_rate}{$sample_id}{$temp_ref} = $match_rate;
+			$rs{paired_rate}{$sample_id}{$temp_ref} = $paired_rate;
+			$rs{cover_area}{$sample_id}{$temp_ref} = $cover_area;
+
+			$rs_ref{$temp_ref} = 0
+
+		}
+		close RS;
+
 	}
+	
+	foreach $meric (keys %rs){
+		foreach $sample_id(keys %{$rs{$meric}}){
+			my $temp_top = 0;
+			my $temp_top_name = "";
+			foreach $temp_ref(keys %{$rs{$meric}{$sample_id}}){
+				if ($rs{$meric}{$sample_id}{$temp_ref} >= $temp_top){
+					$temp_top = $rs{$meric}{$sample_id}{$temp_ref};
+					$temp_top_name = $temp_ref;
+				}	
+			}
+			$rs_ref{$temp_top_name}++;
+		}
+	}
+
+	my $temp_top = 0;
+	my $temp_top_name = "";
+	foreach $temp_ref(keys %rs_ref){
+		if ($rs_ref{$temp_ref}>$temp_top){
+			$temp_top = $rs_ref{$temp_ref};
+			$temp_top_name = $temp_ref;
+		}
+	}
+
+	open RS_REF, ">$cfg{args}{outdir}/01.QualityControl/selected_genome.txt";
+	print RS_REF "$temp_top_name\n";
+	close RS_REF;
 	# create this yaml object
 	$yaml = YAML::Tiny->new( \%cfg );
 	# Save both documents to a file
