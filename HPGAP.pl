@@ -80,21 +80,21 @@ unless (defined $run_flag){
 		$udocker_cmd .= "--env=\"$cfg{args}{env}\" $cfg{args}{container} /bin/bash -c ";
 		
 	#01.indexing
-	print MH "$udocker_cmd 'HPGAP.pl --run step0_indexing --config $allcfg'\n" if (exists $step{0}{indexing});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step0_indexing --config $allcfg' && echo 'indexing done'\n" if (exists $step{0}{indexing});
 
-	print MH "$udocker_cmd 'HPGAP.pl --run step1_read_filtering --config $allcfg'\n" if (exists $step{1}{read_filtering});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step1_read_filtering --config $allcfg'  && echo 'read_filtering done'\n" if (exists $step{1}{read_filtering});
 
-	print MH "$udocker_cmd 'HPGAP.pl --run step1_read_mapping --config $allcfg'\n" if (exists $step{1}{read_mapping});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step1_read_mapping --config $allcfg' && echo 'read_mapping done'\n" if (exists $step{1}{read_mapping});
 	
-	print MH "$udocker_cmd 'HPGAP.pl --run step1_read_report --config $allcfg'\n" if (exists $step{1}{read_report});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step1_read_report --config $allcfg' && echo 'read_report done'\n" if (exists $step{1}{read_report});
 
-	print MH "$udocker_cmd 'HPGAP.pl --run step1_recalibration --config $allcfg'\n" if (exists $step{1}{recalibration});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step1_recalibration --config $allcfg' && echo 'recalibration done'\n" if (exists $step{1}{recalibration});
 
-	print MH "$udocker_cmd 'HPGAP.pl --run step1_variant_calling --config $allcfg'\n" if (exists $step{1}{variant_calling});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step1_variant_calling --config $allcfg' && echo 'variant_calling done'\n" if (exists $step{1}{variant_calling});
 
-	print MH "$udocker_cmd 'HPGAP.pl --run step1_combine_calling --config $allcfg'\n" if (exists $step{1}{combine_calling});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step1_combine_calling --config $allcfg' && echo 'combine_calling done'\n" if (exists $step{1}{combine_calling});
 
-	print MH "$udocker_cmd 'HPGAP.pl --run step1_variant_filtering --config $allcfg'\n" if (exists $step{1}{variant_filtering});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step1_variant_filtering --config $allcfg' && echo 'variant_filtering done'\n" if (exists $step{1}{variant_filtering});
 
 
 	#print "$udocker_cmd 'HPGAP.pl --run step1_comparison --config $allcfg'\n" if (exists $step{1}{Comparison});
@@ -106,25 +106,25 @@ unless (defined $run_flag){
 	#############################################
 
 	#02.SampleFiltering
-	print MH "$udocker_cmd 'HPGAP.pl --run step2_relatedness --config $allcfg'\n" if (exists $step{2}{relatedness});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step2_relatedness --config $allcfg' && echo 'relatedness done'\n" if (exists $step{2}{relatedness});
 
-	print MH "$udocker_cmd 'HPGAP.pl --run step3_phylogeny --config $allcfg'\n" if (exists $step{3}{phylogeny});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step3_phylogeny --config $allcfg' && echo 'phylogeny done'\n" if (exists $step{3}{phylogeny});
 
-	print MH "$udocker_cmd 'HPGAP.pl --run step3_admixture --config $allcfg'\n" if (exists $step{3}{admixture});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step3_admixture --config $allcfg' && echo 'admixture done'\n" if (exists $step{3}{admixture});
 
-	print MH "$udocker_cmd 'HPGAP.pl --run step4_homozygosity --config $allcfg'\n" if (exists $step{5}{homozygosity});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step4_homozygosity --config $allcfg' && echo 'homozygosity done'\n" if (exists $step{5}{homozygosity});
 
-	print MH "$udocker_cmd 'HPGAP.pl --run step4_roh --config $allcfg'\n" if (exists $step{4}{roh});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step4_roh --config $allcfg' && echo 'roh done'\n" if (exists $step{4}{roh});
 
-	print MH "$udocker_cmd 'HPGAP.pl --run step4_ld --config $allcfg'\n" if (exists $step{4}{ld});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step4_ld --config $allcfg' && echo 'ld done'\n" if (exists $step{4}{ld});
 
 	#05.IntraPopulation
-	print MH "$udocker_cmd 'HPGAP.pl --run step4_slidingwindow --config $allcfg'\n" if (exists $step{4}{slidingwindow});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step4_slidingwindow --config $allcfg' && echo 'slidingwindow done'\n" if (exists $step{4}{slidingwindow});
 
-	print MH "$udocker_cmd 'HPGAP.pl --run step4_sfs --config $allcfg'\n" if (exists $step{4}{sfs});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step4_sfs --config $allcfg' && echo 'sfs done'\n" if (exists $step{4}{sfs});
 
 	#06.Selection
-	print MH "$udocker_cmd 'HPGAP.pl --run step6_mktest --config $allcfg'\n" if (exists $step{6}{MKtest});
+	print MH "time $udocker_cmd 'HPGAP.pl --run step6_mktest --config $allcfg' && echo 'MKtest done'\n" if (exists $step{6}{MKtest});
 	close MH;
 }
 

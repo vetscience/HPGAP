@@ -258,6 +258,8 @@ sub READ_REPORT{
 	open RS_REF, ">$cfg{args}{outdir}/01.QualityControl/selected_genome.txt";
 	print RS_REF "$temp_top_name\t$temp_top\n";
 	close RS_REF;
+
+	$cfg{ref}{choose} = $temp_top_name unless (exists $cfg{ref}{choose});
 	# create this yaml object
 	$yaml = YAML::Tiny->new( \%cfg );
 	# Save both documents to a file
