@@ -6,7 +6,7 @@ args = commandArgs(trailingOnly=TRUE)
 #args[3] <-"alldf.stat.xls"
 
 setwd(args[1])
-dir <- args[2]
+dir <- paste(args[2],"/",sep="")
 output <- args[3]
 
 samplelist<-list()
