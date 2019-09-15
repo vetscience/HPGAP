@@ -102,11 +102,11 @@ sub DATA_FILTERING{
 			$samplelist{$sample}{rawdata}{$lib}{Length}=int($samplelist{$sample}{rawdata}{$lib}{Length}*0.7);
 			if($samplelist{$sample}{rawdata}{$lib}{Flag} eq "PE"){
 				print SH "reformat.sh overwrite=true in1=$samplelist{$sample}{rawdata}{$lib}{fq1} in2=$samplelist{$sample}{rawdata}{$lib}{fq2} bhist=$lib\_bhist.txt qhist=$lib\_qhist.txt aqhist=$lib\_aqhist.txt lhist=$lib\_lhist.txt  gchist=$lib\_gchist.txt && \\\n";
-				print SH "trimmomatic PE -threads 10 -phred$samplelist{$sample}{rawdata}{$lib}{Phred} $samplelist{$sample}{rawdata}{$lib}{fq1} $samplelist{$sample}{rawdata}{$lib}{fq2} $lib\_1.filt.fq.gz $lib\_1.filt.unpaired.fq.gz $lib\_2.filt.fq.gz $lib\_2.filt.unpaired.fq.gz LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:$samplelist{$sample}{rawdata}{$lib}{Length} && \\\n";
+				print SH "trimmomatic PE -threads $cfg{args}{threads} -phred$samplelist{$sample}{rawdata}{$lib}{Phred} $samplelist{$sample}{rawdata}{$lib}{fq1} $samplelist{$sample}{rawdata}{$lib}{fq2} $lib\_1.filt.fq.gz $lib\_1.filt.unpaired.fq.gz $lib\_2.filt.fq.gz $lib\_2.filt.unpaired.fq.gz LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:$samplelist{$sample}{rawdata}{$lib}{Length} && \\\n";
 				print SH "reformat.sh overwrite=true in1=$lib\_1.filt.fq.gz in2=$lib\_2.filt.fq.gz bhist=$lib\_bhist.filt.txt qhist=$lib\_qhist.filt.txt aqhist=$lib\_aqhist.filt.txt lhist=$lib\_lhist.filt.txt gchist=$lib\_gchist.filt.txt \n";
 			}if($samplelist{$sample}{rawdata}{$lib}{Flag} eq "SE"){
 				print SH "reformat.sh overwrite=true in1=$samplelist{$sample}{rawdata}{$lib}{fq1} bhist=$lib\_bhist.txt qhist=$lib\_qhist.txt aqhist=$lib\_aqhist.txt lhist=$lib\_lhist.txt  gchist=$lib\_gchist.txt && \\\n";
-				print SH "trimmomatic SE -threads 10 -phred$samplelist{$sample}{rawdata}{$lib}{Phred} $samplelist{$sample}{rawdata}{$lib}{fq1} $lib\_1.filt.fq.gz LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:$samplelist{$sample}{rawdata}{$lib}{Length} && \\\n";
+				print SH "trimmomatic SE -threads $cfg{args}{threads} -phred$samplelist{$sample}{rawdata}{$lib}{Phred} $samplelist{$sample}{rawdata}{$lib}{fq1} $lib\_1.filt.fq.gz LEADING:3 TRAILING:3 SLIDINGWINDOW:4:20 MINLEN:$samplelist{$sample}{rawdata}{$lib}{Length} && \\\n";
 				print SH "reformat.sh overwrite=true in1=$lib\_1.filt.fq.gz bhist=$lib\_bhist.filt.txt qhist=$lib\_qhist.filt.txt aqhist=$lib\_aqhist.filt.txt lhist=$lib\_lhist.filt.txt gchist=$lib\_gchist.filt.txt \n";			
 			}
 		}
@@ -114,7 +114,7 @@ sub DATA_FILTERING{
 		print CL "sh $shpath/$sample.step1a.sh 1>$shpath/$sample.step1a.sh.o 2>$shpath/$sample.step1a.sh.e\n";
 	}
 	close CL;
-	`parallel -j 40 < $shpath/cmd_step1a.list` unless ($skipsh ==1);
+	`parallel -j $cfg{args}{threads} < $shpath/cmd_step1a.list` unless ($skipsh ==1);
 }
 
 ############################
@@ -142,27 +142,27 @@ sub MAPPING{
 			open SH, ">$shpath/$sample.step1b.sh";		
 			print SH "#!/bin/sh\ncd $sample_outpath\n";
 			foreach my $lib (keys %{$samplelist{$sample}{rawdata}}){
-				print SH "bwa mem $reference ../../read_filtering/$sample/$lib\_1.filt.fq.gz ../../read_filtering/$sample/$lib\_2.filt.fq.gz -t 10 -R \"\@RG\\tID:$lib\\tSM:$sample\\tLB:$lib\\tPL:$samplelist{$sample}{rawdata}{$lib}{PL}\"\| samtools view -bS -@ 10 -F 4 - -o $lib\_filt.bam && \\\n" if($samplelist{$sample}{rawdata}{$lib}{Flag} eq "PE");
-				print SH "bwa mem $reference ../../read_filtering/$sample/$lib\_1.filt.fq.gz -t 10 -R \"\@RG\\tID:$lib\\tSM:$sample\\tLB:$lib\\tPL:$samplelist{$sample}{rawdata}{$lib}{PL}\"\| samtools view -bS -@ 10 -F 4 - -o $lib\_filt.bam && \\\n" if($samplelist{$sample}{rawdata}{$lib}{Flag} eq "SE");
-				print SH "samtools sort -@ 10 $lib\_filt.bam -o $lib\_filt.sort.bam --output-fmt BAM && \\\n";
+				print SH "bwa mem $reference ../../read_filtering/$sample/$lib\_1.filt.fq.gz ../../read_filtering/$sample/$lib\_2.filt.fq.gz -t $cfg{args}{threads} -R \"\@RG\\tID:$lib\\tSM:$sample\\tLB:$lib\\tPL:$samplelist{$sample}{rawdata}{$lib}{PL}\"\| samtools view -bS -@ $cfg{args}{threads} -F 4 - -o $lib\_filt.bam && \\\n" if($samplelist{$sample}{rawdata}{$lib}{Flag} eq "PE");
+				print SH "bwa mem $reference ../../read_filtering/$sample/$lib\_1.filt.fq.gz -t $cfg{args}{threads} -R \"\@RG\\tID:$lib\\tSM:$sample\\tLB:$lib\\tPL:$samplelist{$sample}{rawdata}{$lib}{PL}\"\| samtools view -bS -@ 10 -F 4 - -o $lib\_filt.bam && \\\n" if($samplelist{$sample}{rawdata}{$lib}{Flag} eq "SE");
+				print SH "samtools sort -@ $cfg{args}{threads} $lib\_filt.bam -o $lib\_filt.sort.bam --output-fmt BAM && \\\n";
 				print SH "rm -f $lib\_filt.bam\n";
 			}
 
 			if (keys %{$samplelist{$sample}{rawdata}} == 1){
 				foreach my $lib (keys %{$samplelist{$sample}{rawdata}}){print SH "mv $lib\_filt.sort.bam $sample.sorted.bam\n";}
-				print SH "samtools stats -@ 10 $sample.sorted.bam 1>bam.stats.txt 2>bam.stats.txt.e && echo \"** bam.stats.txt done **\"\n";
+				print SH "samtools stats -@ $cfg{args}{threads} $sample.sorted.bam 1>bam.stats.txt 2>bam.stats.txt.e && echo \"** bam.stats.txt done **\"\n";
 			}
 
 			if (keys %{$samplelist{$sample}{rawdata}} > 1){
-				print SH "samtools merge -nr -@ 10 $sample.bam *_filt.sort.bam && echo \"** $sample.sort.bam done **\" && rm -f *_filt.sort.bam\n";
-				print SH "samtools sort -@ 10 $sample.bam -o $sample.sorted.bam --output-fmt BAM && echo \"** $sample.sorted.bam done **\" && rm -f $sample.bam\n";
-				print SH "samtools stats -@ 10 $sample.sorted.bam 1>bam.stats.txt 2>bam.stats.txt.e && echo \"** bam.stats.txt done **\"\n";
+				print SH "samtools merge -nr -@ $cfg{args}{threads} $sample.bam *_filt.sort.bam && echo \"** $sample.sort.bam done **\" && rm -f *_filt.sort.bam\n";
+				print SH "samtools sort -@ $cfg{args}{threads} $sample.bam -o $sample.sorted.bam --output-fmt BAM && echo \"** $sample.sorted.bam done **\" && rm -f $sample.bam\n";
+				print SH "samtools stats -@ $cfg{args}{threads} $sample.sorted.bam 1>bam.stats.txt 2>bam.stats.txt.e && echo \"** bam.stats.txt done **\"\n";
 			}
 			close SH;
 			print CL "sh $shpath/$sample.step1b.sh 1>$shpath/$sample.step1b.sh.o 2>$shpath/$sample.step1b.sh.e \n";
 		}
 		close CL;
-		`parallel -j 40 < $shpath/cmd_step1b.list` unless ($skipsh ==1);
+		`parallel -j $cfg{args}{threads} < $shpath/cmd_step1b.list` unless ($skipsh ==1);
 	}
 
 	# create this yaml object
@@ -424,7 +424,7 @@ sub READ_REPORT{
 		print CL "Rscript $shpath/$sample.step1c.R 1>$shpath/$sample.step1c.R.o 2>$shpath/$sample.step1c.R.e\n";
 	}
 	close CL;
-	print SH "sh -c 'parallel -j 40 < $shpath/cmd_step1c.list'\n";
+	print SH "sh -c 'parallel -j $cfg{args}{threads} < $shpath/cmd_step1c.list'\n";
 	close SH;
 	open MH, ">>$main"; print MH "docker run -ti  -v $mountpath --rm $image sh -c 'sh $shpath/Read_report.sh 1>$shpath/Read_report.sh.o 2>$shpath/Read_report.sh.e'\n";close MH;
 }
@@ -531,7 +531,7 @@ sub CALIBRATION{
 	}
 	close CL;
 
-	`parallel -j 40 < $shpath/cmd_step1d.list`;
+	`parallel -j $cfg{args}{threads} < $shpath/cmd_step1d.list`;
 }
 #################################
 #			   #
@@ -646,7 +646,7 @@ sub VARIANT_CALLING{
 		print CL "sh $shpath/$sample.step1e.sh 1>$shpath/$sample.step1e.sh.o 2>$shpath/$sample.step1e.sh.e\n";
 	}
 	close CL;
-	`parallel -j 40 < $shpath/cmd_step1e.list` unless ($skipsh ==1);
+	`parallel -j $cfg{args}{threads} < $shpath/cmd_step1e.list` unless ($skipsh ==1);
 }
 #################################
 #			   #
@@ -906,7 +906,7 @@ sub VARIANT_COMPARISON{
 	print CL "vcftools --gzvcf $outpath/$vcf1_base.sorted.vcf.gz --positions $outpath/unique.$vcf1_base.position.list --recode --recode-INFO-all --stdout \| bgzip -c >$outpath/$vcf1_base.sorted.unique.vcf.gz\n";
 	print CL "vcftools --gzvcf $outpath/$vcf2_base.sorted.vcf.gz --positions $outpath/unique.$vcf2_base.position.list --recode --recode-INFO-all --stdout \| bgzip -c >$outpath/$vcf2_base.sorted.unique.vcf.gz\n";
 	close CL;
-	print SH "parallel -j 20 < $shpath/cmd1.list\n";
+	print SH "parallel -j $cfg{args}{threads} < $shpath/cmd1.list\n";
 
 	print SH "StatVCF.pl $outpath/$vcf1_base.sorted.common.vcf.gz >$outpath/$vcf1_base.common.stat\n";
 	print SH "StatVCF.pl $outpath/$vcf1_base.sorted.unique.vcf.gz >$outpath/$vcf1_base.unique.stat\n";
@@ -919,7 +919,7 @@ sub VARIANT_COMPARISON{
 		print CL "vcftools --gzvcf $outpath/$pre.vcf.gz --bed $cdsbed --recode --recode-INFO-all --stdout |bgzip -c >$outpath/$pre.cds.vcf.gz\n";
 	}
 	close CL;
-	print SH "parallel -j 20 < $shpath/cmd2.list\n";
+	print SH "parallel -j $cfg{args}{threads} < $shpath/cmd2.list\n";
 	close SH;
 
 	`sh $shpath/comparison.sh 1>$shpath/comparison.sh.o 2>$shpath/comparison.sh.e` unless ($skipsh ==1);
@@ -1072,7 +1072,7 @@ sub ADMIXTURE{
 	push @p, "K";
 	my $p = join (' ',@p);
 
-	print SH "parallel -j 20 < $shpath/step3_admixture.cmd.list\n";
+	print SH "parallel -j $cfg{args}{threads} < $shpath/step3_admixture.cmd.list\n";
 	print SH "cat $shpath/*admixture.o|grep \"CV error\" >$outpath/CV.error.txt\n";
 	print SH "Rscript --vanilla $shpath/admixture.R $p\n";
 	close SH;
@@ -1156,7 +1156,7 @@ sub DIVERGENCE{
 	close CL;
 
 	print SH "source deactivate\n";
-	print SH "parallel -j 20 < $shpath/divergence.cmd.list\n";
+	print SH "parallel -j $cfg{args}{threads} < $shpath/divergence.cmd.list\n";
 	close SH;
 
 	`sh $shpath/Divergence.sh 1>$shpath/Divergence.sh.o 2>$shpath/Divergence.sh.e` unless ($skipsh ==1);
@@ -1358,7 +1358,7 @@ EOF
 		close GRIN;
 
 		close PCL;
-		print CLSH "parallel -j 40 < $shpath/$pop_name.LD.cmd.list\n"; # parallel run PCL 
+		print CLSH "parallel -j $cfg{args}{threads} < $shpath/$pop_name.LD.cmd.list\n"; # parallel run PCL 
 		
 #		my @p;
 #		push @p, $outpath; 
@@ -1379,7 +1379,7 @@ EOF
 		print CL "sh $shpath/$pop_name.LD.sh 1>$shpath/$pop_name.LD.sh.o 2>$shpath/$pop_name.LD.sh.e\n";		
 	}
 	close CL;
-	print SH "parallel -j 20 < $shpath/LD.cmd.list\n";
+	print SH "parallel -j $cfg{args}{threads} < $shpath/LD.cmd.list\n";
 	close SH;
 
 	`sh $shpath/LD.sh 1>$shpath/LD.sh.o 2>$shpath/LD.sh.e` unless ($skipsh ==1);
@@ -1539,11 +1539,11 @@ sub SLIDINGWINDOW{
 	print SH "zcat $outpath/snpEff.vcf.gz |SnpSift filter \"(ANN[*].BIOTYPE has 'protein_coding') & ((ANN[*].EFFECT = 'synonymous_variant') | (ANN[*].EFFECT = 'stop_retained_variant') | (ANN[*].EFFECT = 'start_retained'))\" |perl -ne 'if(/#/){print;}elsif(/ANN/){s/ANN\\S+/./g;print;}else{print;}'|bgzip -c >$outpath/snpEff.syn.vcf.gz\n";
 	print SH "Number_syn_nonsyn_sites.pl $cfg{ref}{db}{$cfg{ref}{choose}}{path} $cfg{step4}{slidingwindow}{gff} test >$outpath/nonsyn.sites.list\n";
 	print SH "SynSitesBin.pl chr.size.list $outpath/nonsyn.sites.list |grep -v NULL|sort -k1,1 -k2,2n >$outpath/SynSitesBin.list\n";
-	print SH "parallel -j 20 < $shpath/Slidingwindow.cmd1.list\n";
-	print SH "parallel -j 20 < $shpath/Slidingwindow.cmd2.list\n";
-	print SH "parallel -j 20 < $shpath/Slidingwindow.cmd3.list\n";
-	print SH "parallel -j 20 < $shpath/Slidingwindow.cmd4.list\n";
-	print SH "#parallel -j 20 < $shpath/Slidingwindow.cmd5.list\n";
+	print SH "parallel -j $cfg{args}{threads} < $shpath/Slidingwindow.cmd1.list\n";
+	print SH "parallel -j $cfg{args}{threads} < $shpath/Slidingwindow.cmd2.list\n";
+	print SH "parallel -j $cfg{args}{threads} < $shpath/Slidingwindow.cmd3.list\n";
+	print SH "parallel -j $cfg{args}{threads} < $shpath/Slidingwindow.cmd4.list\n";
+	print SH "#parallel -j $cfg{args}{threads} < $shpath/Slidingwindow.cmd5.list\n";
 	close SH;
 
 	`sh $shpath/Slidingwindow.sh 1>$shpath/Slidingwindow.sh.o 2>$shpath/Slidingwindow.sh.e` unless ($skipsh ==1);
@@ -1706,7 +1706,7 @@ sub SFS{
 		print CL1 "sh $shpath/$pop_name.SFS.sh 1>$shpath/$pop_name.SFS.sh.o 2>$shpath/$pop_name.SFS.sh.e\n";
 	}
 	close CL1;
-	print SH "parallel -j 40 < $shpath/SFS.cmd1.list\n";
+	print SH "parallel -j $cfg{args}{threads} < $shpath/SFS.cmd1.list\n";
 	close SH;
 
 	`sh $shpath/SFS.sh 1>$shpath/SFS.sh.o 2>$shpath/SFS.sh.e` unless ($skipsh ==1);
@@ -1768,8 +1768,8 @@ sub SFS{
 		close SIMUCL;
 
 		print SH "cd $outpath/$pop_name/\n";
-		print SH "parallel -j 23 < $shpath/$pop_name.Simulation.cmd.list\n";
-		print SH "parallel -j 23 < $shpath/$pop_name.SimFvec.cmd.list\n";
+		print SH "parallel -j $cfg{args}{threads} < $shpath/$pop_name.Simulation.cmd.list\n";
+		print SH "parallel -j $cfg{args}{threads} < $shpath/$pop_name.SimFvec.cmd.list\n";
 		print SH "mkdir -p $outpath/$pop_name/rawFVFiles && mv $outpath/$pop_name/*.fvec rawFVFiles/\n";
 		print SH "mkdir -p $outpath/$pop_name/trainingSets\n";
 		print SH "python /root/diploSHIC/diploSHIC.py makeTrainingSets rawFVFiles/neut.fvec rawFVFiles/soft rawFVFiles/hard 5 0,1,2,3,4,6,7,8,9,10 trainingSets/\n";
@@ -1792,7 +1792,7 @@ sub SFS{
 			}
 		}
 		close PREDCL;
-		print SH "parallel -j 40 < $shpath/$pop_name.predict.cmd.list\n";
+		print SH "parallel -j $cfg{args}{threads} < $shpath/$pop_name.predict.cmd.list\n";
 		close SH;
 		`sh $shpath/$pop_name.Simulation.sh 1>$shpath/$pop_name.Simulation.sh.o 2>$shpath/$pop_name.Simulation.sh.e` unless ($skipsh ==1);
 	}
@@ -1865,7 +1865,7 @@ sub MKTEST{
 
 	open SH, ">$shpath/MKtest.sh";
 	print SH "cd $outpath/prank_alignment\n";
-	print SH "parallel -j 40 < $shpath/aln.cmd.list\n";
+	print SH "parallel -j $cfg{args}{threads} < $shpath/aln.cmd.list\n";
 	print SH "sed -i 's/NNN/---/g' $outpath/prank_alignment/*.nuc.fas\n";
 	print SH "evaluate_alignment_quality.pl >$outpath/filtered.SCO.list\n";
 	print SH "DetectSynandNonSyn.pl black $outpath/prank_alignment/multi.cds.best.nuc.fas\n";

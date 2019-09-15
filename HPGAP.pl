@@ -39,9 +39,16 @@ unless ( defined ($config) ) {
 #my $yml_file = shift;
 my $yaml = YAML::Tiny->read( $config );
 my %cfg = %{$yaml->[0]};
+unless (exists $cfg{args}{threads}){$cfg{args}{threads}=40}
 
-`cp -f $config $cfg{args}{outdir}/allcfg.yml` unless ( -e "$cfg{args}{outdir}/allcfg.yml");
 my $allcfg = "$cfg{args}{outdir}/allcfg.yml";
+
+unless ( -e $allcfg){
+	# create this yaml object
+	$yaml = YAML::Tiny->new( \%cfg );
+	# Save both documents to a file
+	$yaml->write( $allcfg );
+}
 
 my %step;
 if(defined $step){
