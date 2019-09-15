@@ -200,7 +200,8 @@ sub READ_REPORT{
 			`cp $cfg{args}{outdir}/01.QualityControl/read_filtering/$sample/*hist.filt.txt $sample_report_outpath`;
 		}		
 
-		open SH, ">$shpath/read_report.sh";	
+		open SH, ">$shpath/read_report.sh";
+		print SH "#!/bin/sh\ncd $report_outpath\n";
 		print SH "Rscript --vanilla $Bin/lib/ReadSummary.R $report_outpath $report_sample_outpath $temp_ref.Summary.xls\n";
 		`sh $shpath/read_report.sh 1>$shpath/read_report.sh.o 2>$shpath/read_report.sh.e`;
 	}
