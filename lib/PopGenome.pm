@@ -198,6 +198,9 @@ sub READ_REPORT{
 			`cp $outpath/$sample/bam.stats.txt $sample_report_outpath`;
 			`cp $cfg{args}{outdir}/01.QualityControl/read_filtering/$sample/*hist.txt $sample_report_outpath`;
 			`cp $cfg{args}{outdir}/01.QualityControl/read_filtering/$sample/*hist.filt.txt $sample_report_outpath`;
+			`cat $outpath/$sample/bam.stats.txt|grep COV|grep -v "#" >$sample_report_outpath/COV.stat.txt`;
+			`cat $outpath/$sample/bam.stats.txt|grep IS|grep -v "#" >$sample_report_outpath/IS.stat.txt`;
+			`cat $outpath/$sample/bam.stats.txt|grep SN|grep -v "#" >$sample_report_outpath/SN.stat.txt`;
 		}		
 
 		open SH, ">$shpath/read_report.sh";
