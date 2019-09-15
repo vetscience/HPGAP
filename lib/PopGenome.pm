@@ -176,257 +176,37 @@ sub MAPPING{
 #			   #
 #################################
 sub READ_REPORT{
-	my ($samplelist,$reference, $genome, $outpath,$shpath,$main,$mountpath,$image)=@_;
-	my %samplelist = %{$samplelist};
-	if ( !-d $shpath ) { make_path $shpath or die "Failed to create path: $shpath";}
-	if ( !-d $outpath ) { make_path $outpath or die "Failed to create path: $outpath";}
-	open SH, ">$shpath/Read_report.sh";
-	open CL, ">$shpath/cmd_step1c.list";
-	foreach my $sample (keys %samplelist){
-		my $sample_outpath="$outpath/$sample"; if ( !-d $sample_outpath ) {make_path $sample_outpath or die "Failed to create path: $sample_outpath";}
-		open IN, ">$shpath/$sample.step1c.Rmd";
-		print IN '---',"\n";
-		print IN 'title: "Read quality report"',"\n";
-		print IN 'output:',"\n";
-		print IN '  html_document: default',"\n";
-		print IN '  word_document: default',"\n";
-		print IN '  pdf_document: default',"\n";
-		print IN '---',"\n";
-		print IN '',"\n";
-		print IN '```{bash,echo = FALSE, message = FALSE, warning = FALSE}',"\n";
-		print IN "sample=\"$sample\"","\n";
-		print IN "dir=\"$sample_outpath\"","\n";
-		print IN 'less $dir/bam.stats.txt |grep ^SN | cut -f 2- |perl -ne \'s/ //g;print;\' >$dir/SN.stat.txt',"\n";
-		print IN 'less $dir/bam.stats.txt |grep ^COV | cut -f 2- >$dir/COV.stat.txt',"\n";
-		print IN 'less $dir/bam.stats.txt |grep ^IS | cut -f 2- >$dir/IS.stat.txt',"\n";
-		print IN '```',"\n";
-		print IN '',"\n";
-		print IN '```{r setup, include=FALSE}',"\n";
-		print IN 'knitr::opts_chunk$set(echo = TRUE)',"\n";
-		print IN 'library(ggplot2)',"\n";
-		print IN 'library(gridExtra)',"\n";
-		print IN "sample <- \"$sample\"","\n";
-		print IN "dir <- \"$outpath\"","\n";
-		print IN '',"\n";
-		print IN 'raw.path<-paste(dir, sample, "/*lhist.txt", sep="")',"\n";
-		print IN 'raw.lengthList <- lapply(Sys.glob(raw.path), read.table)',"\n";
-		print IN 'raw.x_num<-sapply(1:length(raw.lengthList[]),function(x) sum(raw.lengthList[[x]]$V2))',"\n";
-		print IN 'raw.xbase_num<-sapply(1:length(raw.lengthList[]),function(x) sum(as.numeric(raw.lengthList[[x]]$V2)*as.numeric(raw.lengthList[[x]]$V1)))',"\n";
-		print IN 'raw.No.reads <- prettyNum(sum(raw.x_num),big.mark = ",")',"\n";
-		print IN 'raw.No.bases <- prettyNum(sum(raw.xbase_num),big.mark = ",")',"\n";
-		print IN '',"\n";
-		print IN 'path<-paste(dir, sample, "/*lhist.filt.txt", sep="")',"\n";
-		print IN 'lengthList <- lapply(Sys.glob(path), read.table)',"\n";
-		print IN 'x_num<-sapply(1:length(lengthList[]),function(x) sum(lengthList[[x]]$V2))',"\n";
-		print IN 'xbase_num<-sapply(1:length(lengthList[]),function(x) sum(as.numeric(lengthList[[x]]$V2)*as.numeric(lengthList[[x]]$V1)))',"\n";
-		print IN 'x<-x_num/(sum(x_num))',"\n";
-		print IN 'No.reads <- prettyNum(sum(x_num),big.mark = ",")',"\n";
-		print IN 'No.bases <- prettyNum(sum(xbase_num),big.mark = ",")',"\n";
-		print IN '',"\n";
-		print IN '                                                                                        ',"\n";
-		print IN '##########Phred Quality###############',"\n";
-		print IN 'path<-paste(dir, sample, "/*_qhist.filt.txt", sep="")',"\n";
-		print IN 'qhistList <- lapply(Sys.glob(path), read.table)',"\n";
-		print IN 'q<-lapply(1:length(lengthList[]),FUN = function(y) x[y]*qhistList[[y]])',"\n";
-		print IN 'qhist<-Reduce("+", q)',"\n";
-		print IN 'if(ncol(qhist)==5){colnames(qhist)[1:ncol(qhist)]=c("Pos","Read1","V3","Read2","V4")}',"\n";
-		print IN 'if(ncol(qhist)==3){colnames(qhist)[1:ncol(qhist)]=c("Pos","Read1","V3")}',"\n";
-		print IN '',"\n";
-		print IN 'PhredqR1<-ggplot(data=qhist) + ',"\n";
-		print IN '  geom_line(aes(x=Pos, y=Read1),show.legend=F)+ ',"\n";
-		print IN '  xlab("Position in read1(bp)") + ylab("Phred value") +',"\n";
-		print IN '  scale_y_continuous(limits = c(20, 40))',"\n";
-		print IN '',"\n";
-		print IN 'if(ncol(qhist)==5){PhredqR2<-ggplot(data=qhist) + ',"\n";
-		print IN '  geom_line(aes(x=Pos, y=Read2),show.legend=F)+ ',"\n";
-		print IN '  xlab("Position in read2(bp)") + ylab("Phred value") +',"\n";
-		print IN '  scale_y_continuous(limits = c(20, 40))}',"\n";
-		print IN '',"\n";
-		print IN '############Base distribution################',"\n";
-		print IN 'path<-paste(dir, sample, "/*bhist.filt.txt", sep="")',"\n";
-		print IN 'bhistList <- lapply(Sys.glob(path), read.table)',"\n";
-		print IN 'a<-lapply(1:length(lengthList[]),FUN = function(y) x[y]*bhistList[[y]])',"\n";
-		print IN 'bhist<-Reduce("+", a)',"\n";
-		print IN '',"\n";
-		print IN '#rename colnames, #Pos    A[V2]       C[V3]       G[V4]       T[V5]       N[V6]',"\n";
-		print IN 'colnames(bhist)[1:6]=c("Pos","A","C","G","T","N")',"\n";
-		print IN 'bhist$Pos = bhist$Pos +1',"\n";
-		print IN 'read1<-bhist[bhist$Pos<101,]',"\n";
-		print IN 'read2<-bhist[bhist$Pos>100,]',"\n";
-		print IN 'read2$Pos=read2$Pos - 100',"\n";
-		print IN 'baseread1<-ggplot(data=read1) + ',"\n";
-		print IN '  geom_line(aes(x=Pos, y=A, color="A"),show.legend=F)+ ',"\n";
-		print IN '  geom_line(aes(x=Pos, y=G,color="G"),show.legend=F) + ',"\n";
-		print IN '  geom_line(aes(x=Pos, y=T, color="T"),show.legend=F) + ',"\n";
-		print IN '  geom_line(aes(x=Pos, y=C, color="C"),show.legend=F) +  ',"\n";
-		print IN '  scale_colour_manual("", breaks=c("A","G","C","T"),values = c("blue", "red", "yellow","green")) + ',"\n";
-		print IN '  xlab("Position in read1(bp)") + ylab("Percentage") +',"\n";
-		print IN '  scale_y_continuous(limits = c(0, 0.4))',"\n";
-		print IN '',"\n";
-		print IN 'if(ncol(qhist)==5){baseread2<-ggplot(data=read2) + ',"\n";
-		print IN '  geom_line(aes(x=Pos, y=A, color="A"))+ ',"\n";
-		print IN '  geom_line(aes(x=Pos, y=G,color="G")) + ',"\n";
-		print IN '  geom_line(aes(x=Pos, y=T, color="T")) + ',"\n";
-		print IN '  geom_line(aes(x=Pos, y=C, color="C")) +  ',"\n";
-		print IN '  scale_colour_manual("", breaks=c("A","G","C","T"),values = c("blue", "red", "yellow","green")) + ',"\n";
-		print IN '  xlab("Position in read2(bp)") + ylab("Percentage") +',"\n";
-		print IN '  scale_y_continuous(limits = c(0, 0.4))}',"\n";
-		print IN '',"\n";
-		print IN '############Distribution of Phred Quality#########',"\n";
-		print IN 'raw.path<-paste(dir, sample, "/*_aqhist.txt", sep="")',"\n";
-		print IN 'raw.aqhistList <- lapply(Sys.glob(raw.path), read.table)',"\n";
-		print IN 'raw.aq.count.sum.r1<-sapply(1:length(raw.aqhistList[]),FUN = function(x) sum(as.numeric(raw.aqhistList[[x]]$V2)))',"\n";
-		print IN 'raw.aq.count.sum.r2<-sapply(1:length(raw.aqhistList[]),FUN = function(x) sum(as.numeric(raw.aqhistList[[x]]$V4)))',"\n";
-		print IN 'raw.aq.sum.r1<-sapply(1:length(raw.aqhistList[]),FUN = function(x) sum(as.numeric(raw.aqhistList[[x]]$V2)*as.numeric(raw.aqhistList[[x]]$V1)))',"\n";
-		print IN 'raw.aq.sum.r2<-sapply(1:length(raw.aqhistList[]),FUN = function(x) sum(as.numeric(raw.aqhistList[[x]]$V4)*as.numeric(raw.aqhistList[[x]]$V1)))',"\n";
-		print IN 'raw.aq.avg.r1<-sum(raw.aq.sum.r1/sum(raw.aq.count.sum.r1))',"\n";
-		print IN 'raw.aq.avg.r2<-sum(raw.aq.sum.r2/sum(raw.aq.count.sum.r2))',"\n";
-		print IN 'raw.aq.avg <- paste(as.character(round(raw.aq.avg.r1,2)),as.character(round(raw.aq.avg.r2,2)),sep = "/")',"\n";
-		print IN '',"\n";
-		print IN 'path<-paste(dir, sample, "/*_aqhist.filt.txt", sep="")',"\n";
-		print IN 'aqhistList <- lapply(Sys.glob(path), read.table)',"\n";
-		print IN 'aq.count.sum.r1<-sapply(1:length(aqhistList[]),FUN = function(x) sum(as.numeric(aqhistList[[x]]$V2)))',"\n";
-		print IN 'aq.count.sum.r2<-sapply(1:length(aqhistList[]),FUN = function(x) sum(as.numeric(aqhistList[[x]]$V4)))',"\n";
-		print IN 'aq.sum.r1<-sapply(1:length(aqhistList[]),FUN = function(x) sum(as.numeric(aqhistList[[x]]$V2)*as.numeric(aqhistList[[x]]$V1)))',"\n";
-		print IN 'aq.sum.r2<-sapply(1:length(aqhistList[]),FUN = function(x) sum(as.numeric(aqhistList[[x]]$V4)*as.numeric(aqhistList[[x]]$V1)))',"\n";
-		print IN 'aq.avg.r1<-sum(aq.sum.r1/sum(aq.count.sum.r1))',"\n";
-		print IN 'aq.avg.r2<-sum(aq.sum.r2/sum(aq.count.sum.r2))',"\n";
-		print IN 'aq.avg <- paste(as.character(round(aq.avg.r1,2)),as.character(round(aq.avg.r2,2)),sep = "/")',"\n";
-		print IN '',"\n";
-		print IN '#gc<-lapply(1:length(lengthList[]),FUN = function(y) x[y]*gchistList[[y]])',"\n";
-		print IN 'aqhistList<-lapply(1:length(aqhistList[]),FUN = function(x) aqhistList[[x]][-39,])',"\n";
-		print IN 'aqhist<-Reduce("+", aqhistList)',"\n";
-		print IN 'aqhist$V1<-aqhist$V1/length(aqhistList[])',"\n";
-		print IN 'aqhist$V3<-aqhist$V3/length(aqhistList[])*100',"\n";
-		print IN 'if(ncol(aqhist)==5){aqhist$V5<-aqhist$V5/length(aqhistList[])*100}',"\n";
-		print IN 'qread1<-ggplot(data=aqhist,aes(x=V1,y=V3)) +  geom_bar(stat="identity", width=0.9) +',"\n";
-		print IN '  xlab("Phred Quality") + ylab("Frequency in read1 (%)") +',"\n";
-		print IN '  scale_y_continuous(limits = c(0, 30))',"\n";
-		print IN 'if(ncol(aqhist)==5){qread2<-ggplot(data=aqhist,aes(x=V1,y=V5)) +  geom_bar(stat="identity", width=0.9) +',"\n";
-		print IN '  xlab("Phred Quality") + ylab("Frequency in read2 (%)") +',"\n";
-		print IN '  scale_y_continuous(limits = c(0, 30))}',"\n";
-		print IN '',"\n";
-		print IN '############Distribution of GC content#########',"\n";
-		print IN 'raw.path<-paste(dir, sample, "/*_gchist.txt", sep="")',"\n";
-		print IN 'raw.gchistList <- lapply(Sys.glob(raw.path), read.table)',"\n";
-		print IN 'raw.gc.sum<-sapply(1:length(raw.gchistList[]),FUN = function(x) sum(as.numeric(raw.gchistList[[x]]$V2)*as.numeric(raw.gchistList[[x]]$V1)))',"\n";
-		print IN 'raw.gc.count.sum<-sapply(1:length(raw.gchistList[]),FUN = function(x) sum(as.numeric(raw.gchistList[[x]]$V2)))',"\n";
-		print IN 'raw.gc.avg<-sum(raw.gc.sum/sum(raw.gc.count.sum))',"\n";
-		print IN '',"\n";
-		print IN 'path<-paste(dir, sample, "/*_gchist.filt.txt", sep="")',"\n";
-		print IN 'gchistList <- lapply(Sys.glob(path), read.table)',"\n";
-		print IN 'gc.sum<-sapply(1:length(gchistList[]),FUN = function(x) sum(as.numeric(gchistList[[x]]$V2)*as.numeric(gchistList[[x]]$V1)))',"\n";
-		print IN 'gc.count.sum<-sapply(1:length(gchistList[]),FUN = function(x) sum(as.numeric(gchistList[[x]]$V2)))',"\n";
-		print IN 'gc.avg<-sum(gc.sum/sum(gc.count.sum))',"\n";
-		print IN '',"\n";
-		print IN 'gchist<-Reduce("+", gchistList)',"\n";
-		print IN 'gchist$V1<-gchist$V1/length(gchistList[])',"\n";
-		print IN 'gc.plot<-ggplot(data=gchist,aes(x=V1,y=V2)) +  geom_bar(stat="identity", width=0.9) +',"\n";
-		print IN '  xlab("GC content") + ylab("Frequency")',"\n";
-		print IN '```',"\n";
-		print IN '',"\n";
-		print IN '## `r sample`',"\n";
-		print IN '### Basic statistics',"\n";
-		print IN '',"\n";
-		print IN '```{r echo = FALSE, results=\'asis\'}',"\n";
-		print IN 'library(knitr)',"\n";
-		print IN 'basics<-data.frame( "Category" = c("Raw reads","Filtered reads"), ',"\n";
-		print IN '                    "Number of reads" = c(raw.No.reads,No.reads), ',"\n";
-		print IN '                    "Number of bases" = c(raw.No.bases,No.bases), ',"\n";
-		print IN '                    "GC content" = c(paste(as.character(round(raw.gc.avg,2)), "%", sep = ""), paste(as.character(round(gc.avg,2)), "%", sep = "")),',"\n";
-		print IN '                    "Average phred quality" = c(raw.aq.avg,aq.avg), check.names=FALSE)',"\n";
-		print IN 'kable(basics,caption="Table 1. Basic summary of read data.",align=rep(\'l\', 5))',"\n";
-		print IN '```',"\n";
-		print IN '',"\n";
-		print IN '### Phred quality',"\n";
-		print IN '```{r fig.cap= "Figure 1. The average phred quality for each site of read sequence", echo = FALSE, message = FALSE, warning = FALSE}',"\n";
-		print IN 'if(ncol(qhist)==3){grid.arrange(PhredqR1, nrow = 1,widths = c(1,1))}',"\n";
-		print IN 'if(ncol(qhist)==5){grid.arrange(PhredqR1, PhredqR2, nrow = 1,widths = c(1,1))}',"\n";
-		print IN '```',"\n";
-		print IN '',"\n";
-		print IN '### Sequence composition',"\n";
-		print IN '```{r fig.cap= "Figure 2. Sequence composition for each site of read sequence", echo = FALSE, message = FALSE, warning = FALSE}',"\n";
-		print IN 'if(ncol(qhist)==3){grid.arrange(baseread1, nrow = 1,widths = c(1,1.2))}',"\n";
-		print IN 'if(ncol(qhist)==5){grid.arrange(baseread1, baseread2, nrow = 1,widths = c(1,1.2))}',"\n";
-		print IN '```',"\n";
-		print IN '',"\n";
-		print IN '### Distribution of GC content',"\n";
-		print IN '```{r fig.cap= "Figure 3. Distribution of GC content", echo = FALSE, message = FALSE, warning = FALSE}',"\n";
-		print IN 'gc.plot',"\n";
-		print IN '```',"\n";
-		print IN '',"\n";
-		print IN '### Distribution of Phred Quality',"\n";
-		print IN '```{r fig.cap= "Figure 4. Distribution of Phred Quality", echo = FALSE, message = FALSE, warning = FALSE}',"\n";
-		print IN 'if(ncol(qhist)==3){grid.arrange(qread1, nrow = 1,widths = c(1,1))}',"\n";
-		print IN 'if(ncol(qhist)==5){grid.arrange(qread1, qread2, nrow = 1,widths = c(1,1))}',"\n";
-		print IN '```',"\n";
-		print IN '',"\n";
-		print IN '### Statistics of alignment',"\n";
-		print IN '```{r,echo = FALSE, message = FALSE, warning = FALSE}',"\n";
-		print IN 'file <- paste(dir, sample, "/IS.stat.txt", sep="")',"\n";
-		print IN 'IS<-read.table(file)',"\n";
-		print IN 'IS$V2<-IS$V2/sum(IS$V2)*100',"\n";
-		print IN 'is.plot<-ggplot(data=IS,aes(x=V1,y=V2)) +  geom_bar(stat="identity", width=0.5) +',"\n";
-		print IN '  xlab("Insert Size") + ylab("Frequency(%)")',"\n";
-		print IN '',"\n";
-		print IN 'file <- paste(dir, sample, "/COV.stat.txt", sep="")',"\n";
-		print IN 'COV<-read.table(file)',"\n";
-		print IN 'Avg.cov<-round(sum(as.numeric(COV$V3)*COV$V2)/sum(as.numeric(COV$V3)))',"\n";
-		print IN "Reference.length<-$genome->{sumlen}","\n";
-		print IN 'Coverage<-round(sum(as.numeric(COV$V3))/Reference.length*100,2)',"\n";
-		print IN 'Coverage10<-round(sum(as.numeric(COV$V3[10:length(COV$V3)]))/Reference.length*100,2)',"\n";
-		print IN 'COV$V3<-COV$V3/sum(as.numeric(COV$V3))*100',"\n";
-		print IN '',"\n";
-		print IN '',"\n";
-		print IN 'cov.plot<-ggplot(data=COV,aes(x=V2,y=V3)) +  geom_bar(stat="identity", width=0.8) +',"\n";
-		print IN '  xlab("Coverage") + ylab("Frequency(%)") + scale_x_continuous(limits = c(0, 400))',"\n";
-		print IN '',"\n";
-		print IN 'file <- paste(dir, sample, "/SN.stat.txt", sep="")',"\n";
-		print IN 'SN<-read.table(file)',"\n";
-		print IN 'IS.avg<-SN$V2[26]',"\n";
-		print IN 'IS.sd<-SN$V2[27]',"\n";
-		print IN '',"\n";
-		print IN 'No.reads<-SN$V2[3]',"\n";
-		print IN 'No.mapped.reads<-SN$V2[7]',"\n";
-		print IN 'No.MQ0<-SN$V2[13]',"\n";
-		print IN 'Percentage.mapped<-round(as.numeric((No.mapped.reads-No.MQ0)/No.reads*100),2)',"\n";
-		print IN 'Mismatch.rate<-round(SN$V2[22]*100,2)',"\n";
-		print IN 'basics<-data.frame("Insert size" = paste(IS.avg,"(",IS.sd,")",sep=""),',"\n";
-		print IN '	"Mapping rate (%)" = Percentage.mapped,',"\n";
-		print IN '	"Average depth" = Avg.cov,',"\n";
-		print IN '	"Percent of the genome covered (%)" = Coverage,',"\n";
-		print IN '	"Percent of the genome covered by at least 10 reads (%)" = Coverage10,',"\n";
-		print IN '	"Mismatch rate (%)" = Mismatch.rate,',"\n";
-		print IN '	check.names=FALSE)',"\n";
-		print IN '',"\n";
-		print IN 'kable(basics,caption="Table 2. Statistics of read alignment.",align=rep(\'l\', 5))',"\n";
-		print IN '```',"\n";
-		print IN '',"\n";
-		print IN '### Insert size',"\n";
-		print IN 'For the sample `r sample`, predicted mean (standard deviation) of insert size is `r IS.avg`(`r IS.sd`) with a normal distribution of read insert sizes.',"\n";
-		print IN '```{r fig.cap= "Figre 5. Distribution of insert size", echo = FALSE, message = FALSE, warning = FALSE}',"\n";
-		print IN 'is.plot',"\n";
-		print IN '```',"\n";
-		print IN '',"\n";
-		print IN '### Coverage',"\n";
-		print IN 'We mapped the filtered reads to the reference genome. For sample `r sample`, `r Percentage.mapped`% of the filtered reads were uniquely mapped to the reference.',"\n";
-		print IN '```{r fig.cap= "Figure 6. Distribution of genome coverage", echo = FALSE, message = FALSE, warning = FALSE}',"\n";
-		print IN 'cov.plot',"\n";
-		print IN '```',"\n";
-		close IN;
-		
-		open RSH, ">$shpath/$sample.step1c.R";
-		print RSH "setwd(\"$shpath\")\n";
-		print RSH "library(\"rmarkdown\")\n";
-		print RSH "rmarkdown::render(\"$sample.step1c.Rmd\")\n";
-		close RSH;
+	my ($yml_file,$skipsh) = @_;
+	my $yaml = YAML::Tiny->read( $yml_file );
+	my %cfg = %{$yaml->[0]};
+	my %samplelist = %{$cfg{fqdata}};
 
-		print CL "Rscript $shpath/$sample.step1c.R 1>$shpath/$sample.step1c.R.o 2>$shpath/$sample.step1c.R.e\n";
+	foreach my $temp_ref(keys %{$cfg{ref}{db}}){
+		my $outpath = "$cfg{args}{outdir}/01.QualityControl/read_mapping.$temp_ref"; 
+		if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";} 
+		my $shpath = "$cfg{args}{outdir}/PipelineScripts/01.QualityControl/read_mapping.$temp_ref";
+		if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}
+
+		my $report_outpath="$outpath/Report"; if ( !-d $report_outpath ) {make_path $report_outpath or die "Failed to create path: $report_outpath";}
+
+		my $report_sample_outpath="$outpath/Report/Samples"; if ( !-d $report_sample_outpath ) {make_path $report_sample_outpath or die "Failed to create path: $report_outpath";}
+
+		foreach my $sample (keys %samplelist){
+			
+			my $sample_report_outpath="$outpath/Report/Samples/$sample"; if ( !-d $sample_report_outpath ) {make_path $sample_report_outpath or die "Failed to create path: $sample_report_outpath";}
+
+			`cp $outpath/$sample/bam.stats.txt $sample_report_outpath`;
+			`cp $cfg{args}{outdir}/01.QualityControl/read_filtering/$sample/*hist.txt $sample_report_outpath`;
+			`cp $cfg{args}{outdir}/01.QualityControl/read_filtering/$sample/*hist.filt.txt $sample_report_outpath`;
+		}		
+
+		open SH, ">$shpath/read_report.sh";	
+		print SH "Rscript --vanilla $Bin/lib/ReadSummary.R $report_outpath $report_sample_outpath $temp_ref.Summary.xls\n";
 	}
-	close CL;
-	print SH "sh -c 'parallel -j 10 < $shpath/cmd_step1c.list'\n";
-	close SH;
-	open MH, ">>$main"; print MH "docker run -ti  -v $mountpath --rm $image sh -c 'sh $shpath/Read_report.sh 1>$shpath/Read_report.sh.o 2>$shpath/Read_report.sh.e'\n";close MH;
+	# create this yaml object
+	$yaml = YAML::Tiny->new( \%cfg );
+	# Save both documents to a file
+	$yaml->write( $yml_file );
 }
 
 #################################

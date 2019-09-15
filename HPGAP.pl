@@ -85,6 +85,8 @@ unless (defined $run_flag){
 	print MH "$udocker_cmd 'HPGAP.pl --run step1_read_filtering --config $allcfg'\n" if (exists $step{1}{read_filtering});
 
 	print MH "$udocker_cmd 'HPGAP.pl --run step1_read_mapping --config $allcfg'\n" if (exists $step{1}{read_mapping});
+	
+	print MH "$udocker_cmd 'HPGAP.pl --run step1_read_report --config $allcfg'\n" if (exists $step{1}{read_report});
 
 	print MH "$udocker_cmd 'HPGAP.pl --run step1_recalibration --config $allcfg'\n" if (exists $step{1}{recalibration});
 
@@ -131,6 +133,8 @@ unless (defined $run_flag){
 	PopGenome::DATA_FILTERING($allcfg,$skipsh) if ($run eq 'step1_read_filtering');
 
 	PopGenome::MAPPING($allcfg,$skipsh) if ($run eq 'step1_read_mapping');
+
+	PopGenome::READ_REPORT($allcfg,$skipsh) if ($run eq 'step1_read_report');
 
 	PopGenome::CALIBRATION($allcfg,$skipsh) if ($run eq 'step1_recalibration');
 
@@ -191,6 +195,7 @@ Usage
 		step0_indexing
 		step1_read_filtering
 		step1_read_mapping
+		step1_read_report
 		step1_recalibration
 		step1_variant_calling
 		step1_combine_calling

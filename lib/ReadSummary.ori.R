@@ -1,13 +1,8 @@
 library(ggplot2)
-#library(gridExtra)
-args = commandArgs(trailingOnly=TRUE)
-#args[1]="/home/darcy/PopGen_WorkFlow/Cs_Application/01.QualityControl/Reports"
-#args[2]="/home/darcy/PopGen_WorkFlow/Cs_Application/01.QualityControl/Reports/Samples/"
-#args[3] <-"alldf.stat.xls"
-
-setwd(args[1])
-dir <- args[2]
-output <- args[3]
+library(gridExtra)
+setwd("/home/darcy/PopGen_WorkFlow/Cb_Validation/01.QualityControl/Reports")
+sample <- "JU1341"
+dir <- "/home/darcy/PopGen_WorkFlow/Cb_Validation/01.QualityControl/Reports/Samples/"
 
 samplelist<-list()
 maplist<-list()
@@ -36,9 +31,8 @@ for (sample in list.files(dir)){
   raw.aq.sum.r2<-sapply(1:length(raw.aqhistList[]),FUN = function(x) sum(as.numeric(raw.aqhistList[[x]]$V4)*as.numeric(raw.aqhistList[[x]]$V1)))
   raw.aq.avg.r1<-raw.aq.sum.r1/raw.aq.count.sum.r1
   raw.aq.avg.r2<-raw.aq.sum.r2/raw.aq.count.sum.r2
-  raw.aq.avg.r2[is.nan(raw.aq.avg.r2)] <- 0
   #raw.aq.avg <- paste(as.character(round(raw.aq.avg.r1,2)),as.character(round(raw.aq.avg.r2,2)),sep = "/")
-  mylist[["raw.aq.count.sum.r1"]]<-raw.aq.count.sum.r1; mylist[["raw.aq.count.sum.r2"]]<-raw.aq.count.sum.r2
+  mylist[["raw.aq.count.sum.r1"]]<-raw.aq.count.sum.r1; mylist[["raw.aq.count.sum.r2"]]<-raw.aq.count.sum.r1
   mylist[["raw.aq.avg.r1"]]<-raw.aq.avg.r1; mylist[["raw.aq.avg.r2"]]<-raw.aq.avg.r2
   
   aqhistList <- lapply(Sys.glob(paste(dir, sample, "/*_aqhist.filt.txt", sep="")), read.table)
@@ -48,9 +42,9 @@ for (sample in list.files(dir)){
   aq.sum.r2<-sapply(1:length(aqhistList[]),FUN = function(x) sum(as.numeric(aqhistList[[x]]$V4)*as.numeric(aqhistList[[x]]$V1)))
   aq.avg.r1<-aq.sum.r1/aq.count.sum.r1
   aq.avg.r2<-aq.sum.r2/aq.count.sum.r2
-  aq.avg.r2[is.nan(aq.avg.r2)] <- 0
+
   #aq.avg <- paste(as.character(round(aq.avg.r1,2)),as.character(round(aq.avg.r2,2)),sep = "/")
-  mylist[["aq.count.sum.r1"]]<-aq.count.sum.r1; mylist[["aq.count.sum.r2"]]<-aq.count.sum.r2
+  mylist[["aq.count.sum.r1"]]<-aq.count.sum.r1; mylist[["aq.count.sum.r2"]]<-aq.count.sum.r1
   mylist[["aq.avg.r1"]]<-aq.avg.r1; mylist[["aq.avg.r2"]]<-aq.avg.r2
 
   ############Distribution of GC content#########
@@ -69,8 +63,7 @@ for (sample in list.files(dir)){
   # turn mylist into dataframe
   mydf<-do.call(cbind.data.frame, mylist)
   # drop some colomns for simplicity and attach the dataframe to sample list
-  #drops <- c("raw.aq.count.sum.r1","raw.aq.count.sum.r2","aq.count.sum.r1","aq.count.sum.r2")
-  drops <- c()
+  drops <- c("raw.aq.count.sum.r1","raw.aq.count.sum.r2","aq.count.sum.r1","aq.count.sum.r2")
   samplelist[[sample]]<-mydf[ , !(names(mydf) %in% drops)]
   
   COV<-read.table(paste(dir, sample,"/COV.stat.txt", sep=""))
@@ -85,22 +78,29 @@ for (sample in list.files(dir)){
   mapdf<-data.frame("sample.id"=sample,
                     "raw.data"=sum(mydf$raw.No.bases),
                     "filtered.data"=sum(mydf$No.bases),
-                    "raw.read.avg.quality"=sum(mydf$raw.aq.count.sum.r1*mydf$raw.aq.avg.r1+mydf$raw.aq.count.sum.r2*mydf$raw.aq.avg.r2)/sum(mydf$raw.aq.count.sum.r1+mydf$raw.aq.count.sum.r2),
-                    "read.avg.quality"=sum(mydf$aq.count.sum.r1*mydf$aq.avg.r1+mydf$aq.count.sum.r2*mydf$aq.avg.r2)/sum(mydf$aq.count.sum.r1+mydf$aq.count.sum.r2),
-                    "No.reads"=sum(mydf$No.reads),
                     "reads.mapped"= SN["readsmapped:",2],
                     "Percentage.mapped"=round(as.numeric((SN["readsmapped:",2])/sum(mydf$No.reads)*100),2),
                     "error.rate"=SN["errorrate:",2],
-                    "paired.rate"=round(((SN["readsproperlypaired:",2]/SN["readsmapped:",2])*100),2),
                     "insertsize.avg"=SN["insertsizeaverage:",2],
                     "insertsize.std"=SN["insertsizestandarddeviation:",2],
                     "covered.area"=round(sum(as.numeric(COV$V3))),
-                    "covered.area.avg"=round(SN["basesmapped(cigar)",2]/sum(as.numeric(COV$V3))),
-                    "high.covered.area"=sum(COV[COV$V2>3*SN["basesmapped(cigar)",2]/sum(as.numeric(COV$V3)),]$V3)
+                    "covered.area.avg"=round(sum(as.numeric(COV$V3)*COV$V2)/sum(as.numeric(COV$V3)))
                     )
   maplist[[sample]]<-mapdf
-
+  
+  alldf<-data.frame("sample.id"=sample,
+                    "raw.data"=sum(mydf$raw.No.bases),
+                    "filtered.data"=sum(mydf$No.bases),
+                    "reads.mapped"= SN["readsmapped:",2],
+                    "Percentage.mapped"=round(as.numeric((SN["readsmapped:",2])/sum(mydf$No.reads)*100),2),
+                    "error.rate"=SN["errorrate:",2],
+                    "insertsize.avg"=SN["insertsizeaverage:",2],
+                    "insertsize.std"=SN["insertsizestandarddeviation:",2],
+                    "covered.area"=round(sum(as.numeric(COV$V3))),
+                    "covered.area.avg"=round(sum(as.numeric(COV$V3)*COV$V2)/sum(as.numeric(COV$V3)))
+  )
+  alllist[[sample]]<-mapdf
 }
 
-mapdf<-do.call("rbind", maplist)
-write.table(mapdf, output, sep="\t",row.names=FALSE)
+alldf<-do.call("rbind", maplist)
+write.table(alldf, "alldf.stat.xls", sep="\t")
