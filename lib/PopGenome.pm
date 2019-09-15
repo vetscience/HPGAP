@@ -210,7 +210,7 @@ sub READ_REPORT{
 		print SH "Rscript --vanilla $Bin/lib/ReadSummary.R $report_outpath $report_sample_outpath $temp_ref.Summary.xls\n";
 		`sh $shpath/read_report.sh 1>$shpath/read_report.sh.o 2>$shpath/read_report.sh.e`;
 
-		open RS, "$temp_ref.Summary.xls";
+		open RS, "$report_outpath/$temp_ref.Summary.xls";
 		<RS>;
 		while(<RS>){
 			my @a = split /\t/;
