@@ -661,7 +661,7 @@ EOF
 	
 	### format a report
 	my %report;
-	if ($cfg{step1}{variant_filtering}{vcf} =~ /.gz$/) { open(IN, "gunzip -c $outpath/$cfg{step1}{variant_filtering}{vcf} |") || die "can’t open pipe to $cfg{step1}{variant_filtering}{vcf}";}
+	if ($cfg{step1}{variant_filtering}{vcf} =~ /.gz$/) { open(IN, "gunzip -c $cfg{step1}{variant_filtering}{vcf} |") || die "can’t open pipe to $cfg{step1}{variant_filtering}{vcf}";}
 		else { open(IN, $cfg{step1}{variant_filtering}{vcf}) || die "can’t open $cfg{step1}{variant_filtering}{vcf}";}
 
 	$report{snv1}{number}=0;
@@ -670,11 +670,11 @@ EOF
 		$report{snv1}{number} ++;
 	}
 	close IN;
-	$report{snv1}{singletons} = `wc -l singletons.list`;
+	$report{snv1}{singletons} = `wc -l $outpath/singletons.list | cut -d" " -f1`;
 	$report{snv1}{singletons} = $report{snv1}{singletons} - 1;
 
-	if ($cfg{step1}{variant_filtering}{high_confidence_vcf} =~ /.gz$/) { open(IN, "gunzip -c $outpath/$cfg{step1}{variant_filtering}{high_confidence_vcf} |") || die "can’t open pipe to $outpath/$cfg{step1}{high_confidence_vcf}{vcf}";}
-		else { open(IN, $cfg{step1}{variant_filtering}{high_confidence_vcf}) || die "can’t open $outpath/$cfg{step1}{variant_filtering}{high_confidence_vcf}";}
+	if ($cfg{step1}{variant_filtering}{high_confidence_vcf} =~ /.gz$/) { open(IN, "gunzip -c $cfg{step1}{variant_filtering}{high_confidence_vcf} |") || die "can’t open pipe to $cfg{step1}{high_confidence_vcf}{vcf}";}
+		else { open(IN, $cfg{step1}{variant_filtering}{high_confidence_vcf}) || die "can’t open $cfg{step1}{variant_filtering}{high_confidence_vcf}";}
 	$report{snv2}{number}=0;
 	while (<IN>){
 		next if (/^#/);
@@ -682,8 +682,8 @@ EOF
 	}
 	close IN;
 
-	if ($cfg{step1}{variant_filtering}{lowld_high_confidence_vcf} =~ /.gz$/) { open(IN, "gunzip -c $outpath/$cfg{step1}{variant_filtering}{lowld_high_confidence_vcf} |") || die "can’t open pipe to $outpath/$cfg{step1}{variant_filtering}{lowld_high_confidence_vcf}";}
-		else { open(IN, $cfg{step1}{variant_filtering}{lowld_high_confidence_vcf}) || die "can’t open $outpath/$cfg{step1}{variant_filtering}{lowld_high_confidence_vcf}";}
+	if ($cfg{step1}{variant_filtering}{lowld_high_confidence_vcf} =~ /.gz$/) { open(IN, "gunzip -c $cfg{step1}{variant_filtering}{lowld_high_confidence_vcf} |") || die "can’t open pipe to $cfg{step1}{variant_filtering}{lowld_high_confidence_vcf}";}
+		else { open(IN, $cfg{step1}{variant_filtering}{lowld_high_confidence_vcf}) || die "can’t open $cfg{step1}{variant_filtering}{lowld_high_confidence_vcf}";}
 	$report{snv3}{number}=0;
 	while (<IN>){
 		next if (/^#/);
@@ -1771,3 +1771,4 @@ sub LOADREF{
 }
 
 1;
+# No newline at end of file

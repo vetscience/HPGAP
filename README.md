@@ -115,6 +115,7 @@ Usage
 		step0_indexing
 		step1_read_filtering
 		step1_read_mapping
+		step1_read_report
 		step1_recalibration
 		step1_variant_calling
 		step1_combine_calling
@@ -131,7 +132,7 @@ Usage
 	--config path to the .yml config file
 	
 	--step <String>	specified steps separated by semicolon(;). The names of analyses in each step are separated by comma (,);
-		(e.g. "0:indexing;1:read_filtering,read_mapping,recalibration,variant_calling,combine_calling,variant_filtering;3:phylogeny,admixture;4:homozygosity,roh,ld,slidingwindow,sfs").
+		(e.g. "0:indexing;1:read_filtering,read_mapping,read_report,recalibration,variant_calling,combine_calling,variant_filtering;3:phylogeny,admixture;4:homozygosity,roh,ld,slidingwindow,sfs").
 
 		All the avaliable analyses in each step: 
 			0:indexing;
