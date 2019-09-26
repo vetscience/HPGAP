@@ -30,6 +30,8 @@ sub LOADREF{
 		$genome{len}{$id}=length($genome{seq}{$id});
 		$genome{sumlen} += $genome{len}{$id};
 	}
+
+	print "LOADREF finished\n";
 	return \%genome;
 }
 
