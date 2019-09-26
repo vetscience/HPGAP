@@ -23,7 +23,7 @@ sub VARIANT_FILTERING{
 	my $outpath = "$cfg{args}{outdir}/01.QualityControl/Combined";
 	my $shpath = "$cfg{args}{outdir}/PipelineScripts/01.QualityControl/step1_variant_filtering";
 	my $reference = $cfg{ref}{db}{$cfg{ref}{choose}}{path};
-	my $genome=LOADREF($reference);
+	my $genome=PopGenome_Shared::LOADREF($reference);
 
 	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
 	if ( !-d $shpath ) {make_path $shpath or die "Failed to create path: $shpath";}

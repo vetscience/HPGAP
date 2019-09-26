@@ -32,7 +32,7 @@ sub INDEXING{
 	open SH, ">$shpath/index.sh";
 	foreach my $temp_ref(keys %{$cfg{ref}{db}}){
 		my $reference = $cfg{ref}{db}{$temp_ref}{path};
-		my $genome=LOADREF($reference);
+		my $genome=PopGenome_Shared::LOADREF($reference);
 
 		my $ref_base=basename($reference);
 		my $ref_dir=dirname($reference);

@@ -23,7 +23,7 @@ sub LD{
 	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/LD/";
 	my $shpath = "$cfg{args}{outdir}/PipelineScripts/05.IntraPopulation/LD/";
 
-	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
+	my $genome = PopGenome_Shared::LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
 	my $gzvcf = $cfg{step1}{variant_filtering}{high_confidence_vcf};
 	if ($cfg{args}{ploidy} == 1 ){
 		$ori_gzvcf = $gzvcf;

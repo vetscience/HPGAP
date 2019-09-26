@@ -19,7 +19,7 @@ sub SFS{
 	my $shpath = "$cfg{args}{outdir}/PipelineScripts/05.IntraPopulation/SFS/";
 	my $slidingwindowpath = "$cfg{args}{outdir}/05.IntraPopulation/Slidingwindow/";
 
-	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
+	my $genome = PopGenome_Shared::LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
 	my $gzvcf = $cfg{step1}{variant_filtering}{vcf};
 	my $localgzvcf = $gzvcf;
 	#$localgzvcf = $gzvcf if ($cfg{args}{ploidy} == 2);

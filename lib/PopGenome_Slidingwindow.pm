@@ -22,7 +22,7 @@ sub SLIDINGWINDOW{
 	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/Slidingwindow/";
 	my $shpath = "$cfg{args}{outdir}/PipelineScripts/05.IntraPopulation/Slidingwindow/";
 
-	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
+	my $genome = PopGenome_Shared::LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
 	my $gzvcf = $cfg{step1}{variant_filtering}{vcf};
 
 	$cfg{step4}{slidingwindow}{windowsize} = 5000 unless (defined $cfg{step4}{slidingwindow}{windowsize});

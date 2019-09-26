@@ -22,7 +22,7 @@ sub HOMOZYGOSITY{
 	my $outpath = "$cfg{args}{outdir}/05.IntraPopulation/Homozygosity/";
 	my $shpath = "$cfg{args}{outdir}/PipelineScripts/05.IntraPopulation/Homozygosity/";
 
-	my $genome = LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
+	my $genome = PopGenome_Shared::LOADREF($cfg{ref}{db}{$cfg{ref}{choose}}{path});
 	my $gzvcf = $cfg{step1}{variant_filtering}{high_confidence_vcf};
 
 	if ( !-d $outpath ) {make_path $outpath or die "Failed to create path: $outpath";}
