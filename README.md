@@ -198,6 +198,7 @@ args:
       host_path: <your working directory>
   outdir: <your output directory> # This directory should be located within the working directory.
   ploidy: '2' # set 1 for haploid; set 2 for diploid.
+  threads: 40 # set the number of threads
 fqdata: # Set up the sample fqdata
   1-1: # Sample id
     rawdata:
@@ -320,6 +321,7 @@ ref:
       name: Cs-k2 # label of reference 2
       path: <HPGAP path>/Example/Input/Cs-k2.example.fa
 step1: # parameter settings for step1
+  variant_calling_mode: 'fast' # if fast mode is selected, base recalibration of gatk will be skipped to spead up the variant calling, otherwise, two rounds of base recalibration will be applied.
   variant_filtering:
     indel: 'QD < 2.0 || FS > 200.0 || ReadPosRankSum < -20.0' # The settings for indel filtering. To modify that, please check the manual of GATK4
     ldcutoff: '0.3' # cut off for filtering SNVs with high LD
