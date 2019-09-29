@@ -36,7 +36,10 @@ sub CALIBRATION{
 		my $sample_outpath="$outpath/$sample"; if ( !-d $sample_outpath ) {make_path $sample_outpath or die "Failed to create path: $sample_outpath";}
 		open SH, ">$shpath/$sample.step1d.sh";
 
-		print SH "#!/bin/sh\ncd $sample_outpath\n";		
+		print SH "#!/bin/sh\ncd $sample_outpath\n";
+#		if (defined $cfg{step1}{read_subsampling}){
+#			print SH "\n";
+#		}	
 		# MarkDuplicates
 		print SH "gatk MarkDuplicates \\\n";
 	  	print SH "	--INPUT $sample.sorted.bam \\\n";
