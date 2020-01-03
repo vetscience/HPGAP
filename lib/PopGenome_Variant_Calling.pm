@@ -48,7 +48,7 @@ sub VARIANT_CALLING{
 			print SH "	-I $sample.sorted.markdup.bam \\\n";
 			print SH "	-O $sample.HC.gvcf.gz && echo \"** GVCF ${sample}.HC.g.vcf.gz done\" && \\\n";
 		  	print SH "rm -f $sample.sorted.markdup.BQSR2nd.bam\n";
-		}else{
+		}elsif ($cfg{step1}{variant_calling_mode} eq 'individual_recalibration'){
 		  	# HaplotypeCaller
 		  	print SH "gatk HaplotypeCaller \\\n";
 		  	print SH "	-R $reference \\\n";
@@ -111,7 +111,7 @@ sub VARIANT_CALLING{
 		  	print SH "	-O $sample.sorted.markdup.recal_data2nd_after.table \\\n";
 			print SH "	--known-sites $sample\_filtered_snps2nd.vcf.gz \\\n";
 			print SH "	--known-sites $sample\_filtered_indels2nd.vcf.gz && echo \"** $sample.sorted.markdup.recal_data.table done **\" \n";
-
+			
 			print SH "gatk HaplotypeCaller \\\n";
 			print SH "	--emit-ref-confidence GVCF \\\n";
 			print SH "	-R $reference \\\n";

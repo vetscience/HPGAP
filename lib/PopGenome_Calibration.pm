@@ -53,6 +53,15 @@ sub CALIBRATION{
 			open SH, ">$var{shpath}/joint_bqsr_s1_$sample.sh";
 			print SH "#!/bin/sh\ncd $sample_outpath\n";
 
+			# MarkDuplicates
+			print SH "gatk MarkDuplicates \\\n";
+		  	print SH "	--INPUT $sample.sorted.bam \\\n";
+		  	print SH "	--OUTPUT $sample.sorted.markdup.bam \\\n";
+		  	print SH "	--METRICS_FILE $sample.sorted.markdup_metrics.txt && \\\n";
+		  	print SH "rm -f $sample.sorted.bam && \\\n";
+		  	print SH "echo \"** $sample.sorted.markdup.bam done **\" && \\\n";
+		  	print SH "samtools index $sample.sorted.markdup.bam && echo \"** $sample.sorted.markdup.bam index done **\" \n";
+		  	
 			print SH "gatk HaplotypeCaller \\\n";
 			print SH "	--emit-ref-confidence GVCF \\\n";
 			print SH "	-R $var{reference} \\\n";
