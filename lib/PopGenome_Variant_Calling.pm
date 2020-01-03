@@ -32,6 +32,8 @@ sub VARIANT_CALLING{
 
 	open CL, ">$shpath/cmd_step1e.list";
 
+	
+
 	foreach my $sample (keys %samplelist){
 		my $sample_outpath="$outpath/$sample"; if ( !-d $sample_outpath ) {make_path $sample_outpath or die "Failed to create path: $sample_outpath";}
 		open SH, ">$shpath/$sample.step1e.sh";
