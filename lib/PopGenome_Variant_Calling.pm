@@ -111,7 +111,7 @@ sub VARIANT_CALLING{
 		  	print SH "	-O $sample.sorted.markdup.recal_data2nd_after.table \\\n";
 			print SH "	--known-sites $sample\_filtered_snps2nd.vcf.gz \\\n";
 			print SH "	--known-sites $sample\_filtered_indels2nd.vcf.gz && echo \"** $sample.sorted.markdup.recal_data.table done **\" \n";
-			
+
 			print SH "gatk HaplotypeCaller \\\n";
 			print SH "	--emit-ref-confidence GVCF \\\n";
 			print SH "	-R $reference \\\n";
@@ -129,6 +129,8 @@ sub VARIANT_CALLING{
 		  	print SH "	--before-report-file $sample.sorted.markdup.recal_data2nd.table \\\n";
 		  	print SH "	--after-report-file $sample.sorted.markdup.recal_data2nd_after.table \\\n";
 		  	print SH "	--plots-report-file $sample.recalQC.2nd.pdf\n";
+	  	}elsif ($cfg{step1}{variant_calling_mode} eq 'individual_recalibration'){
+	  		next;
 	  	}
 		close SH;
 		print CL "sh $shpath/$sample.step1e.sh 1>$shpath/$sample.step1e.sh.o 2>$shpath/$sample.step1e.sh.e\n";

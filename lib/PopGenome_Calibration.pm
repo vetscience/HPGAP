@@ -61,7 +61,7 @@ sub CALIBRATION{
 		  	print SH "rm -f $sample.sorted.bam && \\\n";
 		  	print SH "echo \"** $sample.sorted.markdup.bam done **\" && \\\n";
 		  	print SH "samtools index $sample.sorted.markdup.bam && echo \"** $sample.sorted.markdup.bam index done **\" \n";
-		  	
+
 			print SH "gatk HaplotypeCaller \\\n";
 			print SH "	--emit-ref-confidence GVCF \\\n";
 			print SH "	-R $var{reference} \\\n";
@@ -278,7 +278,7 @@ sub CALIBRATION{
 			print SH "	-R $var{reference} \\\n";
 			print SH "	-ploidy $var{ploidy} \\\n";
 			print SH "	-I $sample.sorted.markdup.BQSR2nd.bam \\\n";
-			print SH "	-O $sample.HC.3rd.gvcf.gz && echo \"** GVCF $sample.HC.3rd.gvcf.gz done\" && \\\n";
+			print SH "	-O $sample.HC.gvcf.gz && echo \"** GVCF $sample.HC.3rd.gvcf.gz done\" && \\\n";
 			print SH "rm -f $sample.sorted.markdup.BQSR2nd.bam\n";
 			
 			print SH "gatk AnalyzeCovariates \\\n";
@@ -301,60 +301,6 @@ sub CALIBRATION{
 		`parallel -j $cfg{args}{threads} < $var{shpath}/joint_bqsr_s5.list`;
 		#`perl $Bin/lib/qsub.pl -r -d $var{shpath}/joint_bqsr_s5_qsub -q $cfg{args}{queue} -P $cfg{args}{prj} -l 'vf=5G,num_proc=1 -binding linear:1' -m 100 $var{shpath}/joint_bqsr_s5.list` unless (defined $opts{skipsh});
 		#### Second round of recalibration END ####
-
-		#### Final round of joint calling START ####
-		open CL, ">$var{shpath}/joint_bqsr_s6.list";
-		open SH, ">$var{shpath}/joint_bqsr_s6.sh";
-
-		print SH "gatk CombineGVCFs \\\n";
-		print SH "	-R $var{reference} \\\n";
-		print SH "$sample_gvcfs";
-		print SH "	-O $var{outpath}/JointBQSR/JointCalling.HC.g3rd.vcf.gz && echo \"** JointCalling.HC.g3rd.vcf.gz done ** \"\n";
-
-		print SH "gatk GenotypeGVCFs \\\n";
-		print SH "	-R $var{reference} \\\n";
-		print SH "	-ploidy $var{ploidy} \\\n";
-		print SH "	-V $var{outpath}/JointBQSR/JointCalling.HC.g3rd.vcf.gz \\\n";
-		print SH "	-O $var{outpath}/JointBQSR/JointCalling.HC3rd.vcf.gz && echo \"** JointCalling.HC3rd.vcf.gz done ** \"\n";
-
-		print SH "gatk SelectVariants \\\n";
-		print SH "	-R $var{reference} \\\n";
-		print SH "	-V $var{outpath}/JointBQSR/JointCalling.HC3rd.vcf.gz \\\n";
-		print SH "	--select-type-to-include SNP \\\n";
-		print SH "	-O $var{outpath}/JointBQSR/JointCalling_raw_snps3rd.vcf && echo \"** GVCF JointBQSR/JointCalling_raw_snps3rd done\" && \\\n";
-
-		print SH "gatk VariantFiltration \\\n";
-		print SH "	-R $var{reference} \\\n";
-		print SH "	-V $var{outpath}/JointBQSR/JointCalling_raw_snps3rd.vcf \\\n";
-		print SH "	--filter-expression \"QD < 2.0 || FS > 60.0 || MQ < 40.0 || MQRankSum < -12.5 || ReadPosRankSum < -8.0\" \\\n";
-		print SH "	--filter-name \"my_snp_filter\" \\\n";
-		print SH "	-O $var{outpath}/JointBQSR/JointCalling_filtered_snps3rd.vcf && echo \"** GVCF JointBQSR/JointCalling_filtered_snps3rd done\" \n";
-
-		print SH "gatk SelectVariants \\\n";
-		print SH "	-R $var{reference} \\\n";
-		print SH "	-V $var{outpath}/JointBQSR/JointCalling.HC3rd.vcf.gz \\\n";
-		print SH "	--select-type-to-include INDEL \\\n";
-		print SH "	-O $var{outpath}/JointBQSR/JointCalling_raw_indels3rd.vcf && echo \"** GVCF JointBQSR/JointCalling_raw_indels3rd done\" && \\\n";
-
-		print SH "gatk VariantFiltration \\\n";
-		print SH "	-R $var{reference} \\\n";
-		print SH "	-V $var{outpath}/JointBQSR/JointCalling_raw_indels3rd.vcf \\\n";
-		print SH "	--filter-expression \"QD < 2.0 || FS > 200.0 || ReadPosRankSum < -20.0\" \\\n";
-		print SH "	--filter-name \"my_indel_filter\" \\\n";
-		print SH "	-O $var{outpath}/JointBQSR/JointCalling_raw_indels3rd.vcf && echo \"** JointBQSR/JointCalling_raw_indels3rd done\" \n";
-
-		print SH "bgzip -f $var{outpath}/JointBQSR/JointCalling_filtered_snps3rd.vcf\n";
-		print SH "tabix -f $var{outpath}/JointBQSR/JointCalling_filtered_snps3rd.vcf.gz \n";
-		print SH "bgzip -f $var{outpath}/JointBQSR/JointCalling_filtered_indels3rd.vcf\n";
-		print SH "tabix -f $var{outpath}/JointBQSR/JointCalling_filtered_indels3rd.vcf.gz \n";
-
-		close SH;
-		print CL "sh $var{shpath}/joint_bqsr_s6.sh 1>$var{shpath}/joint_bqsr_s6.sh.o 2>$var{shpath}/joint_bqsr_s6.sh.e\n";
-		close CL;
-
-		`parallel -j $cfg{args}{threads} < $var{shpath}/joint_bqsr_s6.list`;
-		#`perl $Bin/lib/qsub.pl -r -d $var{shpath}/joint_bqsr_s6_qsub -q $cfg{args}{queue} -P $cfg{args}{prj} -l 'vf=5G,num_proc=1 -binding linear:1' -m 100 $var{shpath}/joint_bqsr_s6.list` unless (defined $opts{skipsh});
-		#### Final round of joint calling END ####
 	}else{
 
 		foreach my $sample (keys %samplelist){
